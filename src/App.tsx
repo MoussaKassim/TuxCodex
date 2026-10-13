@@ -203,6 +203,7 @@ export default function App() {
   const loadServer = useCallback(async (path: string, restart = false) => {
     setConnection("connecting");
     setConnectionDetail("Starting Codex app-server…");
+    setFullAccessAllowed(true);
     setApprovalQueue([]);
     try {
       await connect(path, restart);
@@ -218,8 +219,6 @@ export default function App() {
       setDiff("");
       setPlan([]);
       setBusy(false);
-      setConnection("connected");
-      setConnectionDetail("Connected to Codex app-server");
       const results = await Promise.allSettled([
         rpc<{ data?: Model[] }>("model/list", { limit: 100 }),
         rpc<{ account?: { type?: string; email?: string | null } | null; requiresOpenaiAuth?: boolean }>("account/read", { refreshToken: false }),
@@ -237,11 +236,18 @@ export default function App() {
       }
       if (results[3].status === "fulfilled") {
         const requirements = results[3].value.requirements;
-        setFullAccessAllowed((!requirements?.allowedApprovalPolicies || requirements.allowedApprovalPolicies.includes("never")) && (!requirements?.allowedSandboxModes || requirements.allowedSandboxModes.includes("dangerFullAccess")));
+        const allowed = (!requirements?.allowedApprovalPolicies || requirements.allowedApprovalPolicies.includes("never")) && (!requirements?.allowedSandboxModes || requirements.allowedSandboxModes.includes("dangerFullAccess"));
+        setFullAccessAllowed(allowed);
+        if (!allowed) {
+          setSettings((current) => ({ ...current, permissionMode: "standard" }));
+          setDraftSettings((current) => ({ ...current, permissionMode: "standard" }));
+        }
       }
       for (const result of results.slice(0, 3)) {
         if (result.status === "rejected") setError(errorText(result.reason));
       }
+      setConnection("connected");
+      setConnectionDetail("Connected to Codex app-server");
     } catch (failure) {
       setConnection("disconnected");
       setConnectionDetail(errorText(failure));
@@ -612,9 +618,11 @@ export default function App() {
 
   async function startRecording() {
     if (!inDesktop || recorderRef.current) return;
+    let mediaStream: MediaStream | null = null;
     try {
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") throw new Error("Microphone recording is unavailable in this webview.");
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = mediaStream;
       const supported = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"].find((type) => MediaRecorder.isTypeSupported(type));
       const recorder = new MediaRecorder(stream, supported ? { mimeType: supported } : undefined);
       const chunks: BlobPart[] = [];
@@ -651,7 +659,7 @@ export default function App() {
         };
         try { recognition.start(); speechRef.current = recognition; } catch { /* Recording remains available without transcription. */ }
       }
-    } catch (failure) { setError(errorText(failure)); setRecording(false); }
+    } catch (failure) { mediaStream?.getTracks().forEach((track) => track.stop()); setError(errorText(failure)); setRecording(false); }
   }
 
   function stopRecording() {
@@ -664,6 +672,7 @@ export default function App() {
     setError(null);
     try {
       const created = await createWorktree(settings.cwd);
+      newChat();
       setSettings((current) => ({ ...current, cwd: created.path }));
       setWorktreeNotice(`Worktree created from ${shortPath(created.sourceRoot)} at HEAD. Local uncommitted changes were not copied.`);
       setReviewTab("git");
