@@ -1,0 +1,32 @@
+name: Linux desktop build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: npm ci
+      - run: npm run build
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: npm run tauri build -- --bundles deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tuxcodex-linux-deb
+          path: src-tauri/target/release/bundle/deb/*.deb
