@@ -51,7 +51,7 @@ interface SpeechRecognitionLike { continuous: boolean; interimResults: boolean; 
 
 const defaultSettings: Settings = { codexPath: "", cwd: "", model: "", effort: "", theme: "system", permissionMode: "standard" };
 const demoThreads: Thread[] = [
-  { id: "demo-1", name: "Welcome to TuxCodex", preview: "Explore the Linux desktop client", updatedAt: Date.now() / 1000 },
+  { id: "demo-1", name: "Welcome to TuxCodex", preview: "Explore the desktop client", updatedAt: Date.now() / 1000 },
   { id: "demo-2", name: "A sample workspace", preview: "Ask Codex about your project", updatedAt: Date.now() / 1000 - 86400 },
 ];
 const demoItems: ChatItem[] = [
@@ -831,7 +831,7 @@ export default function App() {
       <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
         <div className="brand-row">
           <div className="brand-mark"><Terminal size={21} strokeWidth={2.3} /></div>
-          <div className="brand-copy"><strong>TuxCodex</strong><span>CODEX FOR LINUX</span></div>
+          <div className="brand-copy"><strong>TuxCodex</strong><span>CODEX DESKTOP</span></div>
           <button className="icon-button sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Close sidebar"><X size={18} /></button>
         </div>
         <button className="new-chat" onClick={newChat}><Plus size={18} /><span>New chat</span><span className="shortcut">Ctrl N</span></button>
@@ -887,7 +887,7 @@ export default function App() {
           {items.length === 0 ? (
             <div className="welcome-state">
               <div className="welcome-icon"><Terminal size={32} strokeWidth={1.8} /></div>
-              <span className="eyebrow">YOUR LINUX CODING COMPANION</span>
+              <span className="eyebrow">YOUR CODING COMPANION</span>
               <h1>What are we building?</h1>
               <p>Ask Codex to explore a codebase, make a change, or explain what it finds. Start with a workspace for project specific work.</p>
               <div className="suggestions">
