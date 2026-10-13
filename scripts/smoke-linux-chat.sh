@@ -32,19 +32,23 @@ if [[ ${1:-} == --session ]]; then
   xdotool windowactivate --sync "$window_id"
   sleep 1
   eval "$(xdotool getwindowgeometry --shell "$window_id")"
-  if [[ ${TUXCODEX_SMOKE_SELECT_MODEL:-} == 1 ]]; then
-    # Both pickers sit in the composer footer. Select their second option with
-    # the keyboard after opening each menu by click.
-    xdotool mousemove --window "$window_id" "$((WIDTH * 55 / 100))" "$((HEIGHT - 67))" click 1
-    sleep .2
-    xdotool key Down Return
-    sleep .2
-    xdotool mousemove --window "$window_id" "$((WIDTH * 64 / 100))" "$((HEIGHT - 67))" click 1
-    sleep .2
-    xdotool key Down Return
-    sleep .2
-  fi
   xdotool mousemove --window "$window_id" "$((WIDTH * 60 / 100))" "$((HEIGHT - 115))" click 1
+  if [[ ${TUXCODEX_SMOKE_SELECT_MODEL:-} == 1 ]]; then
+    # Tab from the composer textarea through the three attachment buttons to
+    # the model picker. Keyboard focus is stable across desktop font metrics.
+    xdotool key --clearmodifiers Tab Tab Tab Tab
+    xdotool key Return
+    sleep .2
+    xdotool key Down Return
+    sleep .2
+    xdotool key Tab
+    sleep .2
+    xdotool key Return
+    sleep .2
+    xdotool key Down Return
+    sleep .2
+    xdotool mousemove --window "$window_id" "$((WIDTH * 60 / 100))" "$((HEIGHT - 115))" click 1
+  fi
   xdotool type --clearmodifiers --delay 8 "$prompt"
   xdotool key Return
 
