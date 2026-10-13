@@ -55,7 +55,7 @@ jobs:
       - name: Install Tauri prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth xdotool
       - run: npm ci
       - run: npm run test:coverage
       - uses: actions/upload-artifact@v4
@@ -69,9 +69,54 @@ jobs:
       - run: npm run build
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles deb
+      - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex"
+      - run: |
+          for package in src-tauri/target/release/bundle/deb/*.deb; do
+            test -f "$package"
+            mv "$package" "${package%.deb}_ubuntu24.deb"
+          done
       - uses: actions/upload-artifact@v4
         with:
-          name: tuxcodex-ubuntu-amd64
+          name: tuxcodex-ubuntu24-amd64
+          path: src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
+
+  ubuntu-22:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Install Tauri and window test prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth xdotool
+      - run: npm ci
+      - run: npm test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-ubuntu22
+          path: test-results/frontend.xml
+          if-no-files-found: warn
+      - run: npm run build
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: npm run tauri build -- --bundles deb
+      - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex"
+      - run: |
+          for package in src-tauri/target/release/bundle/deb/*.deb; do
+            test -f "$package"
+            mv "$package" "${package%.deb}_ubuntu22.deb"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tuxcodex-ubuntu22-amd64
           path: src-tauri/target/release/bundle/deb/*.deb
           if-no-files-found: error
 
@@ -176,7 +221,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [app-server-protocol, ubuntu, fedora, windows, macos]
+    needs: [app-server-protocol, ubuntu, ubuntu-22, fedora, windows, macos]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -191,7 +236,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          test "$(find release-assets -maxdepth 1 -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.exe' -o -name '*.dmg' \) | wc -l)" -eq 5
+          test "$(find release-assets -maxdepth 1 -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.exe' -o -name '*.dmg' \) | wc -l)" -eq 6
           cd release-assets
           sha256sum *.deb *.rpm *.exe *.dmg > SHA256SUMS.txt
           cd ..

@@ -18,6 +18,7 @@ Get the latest installers from [GitHub Releases](https://github.com/MoussaKassim
 | macOS (Apple silicon / Intel) | `.dmg` |
 
 The installers are not code signed or notarized yet, so Windows or macOS may display a warning. Each release includes `SHA256SUMS.txt` for checking downloads.
+The next tagged release is planned to include separate Ubuntu 22.04 and 24.04 packages. Version 0.1.0 predates that split.
 
 ## Get started
 
@@ -95,7 +96,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 `test:app-server` needs an installed `codex` CLI on `PATH`; use `TUXCODEX_TEST_CODEX_BIN` to select another executable. The test uses a temporary Codex home and workspace without starting an inference turn.
 
-GitHub Actions runs frontend and Rust tests, checks the app-server protocol against an older and a current CLI, uploads JUnit reports and Ubuntu coverage, and builds installers for Linux, Windows, and macOS. Version tags publish installers only after the required jobs pass. Interactive testing on each platform is still valuable; the maintainer has confirmed the Linux experience. Contributions and bug reports are welcome through [Issues](https://github.com/MoussaKassim/TuxCodex/issues).
+GitHub Actions runs frontend and Rust tests, checks the app-server protocol against an older and a current CLI, uploads JUnit reports and Ubuntu coverage, and builds installers for Ubuntu 22.04, Ubuntu 24.04, Fedora, Windows, and macOS. The Ubuntu jobs also check that the packaged app opens a visible window under Xvfb. Version tags publish installers only after the required jobs pass. Interactive testing on each platform is still valuable; the maintainer has confirmed the Linux experience. Contributions and bug reports are welcome through [Issues](https://github.com/MoussaKassim/TuxCodex/issues).
 
 ## License
 
