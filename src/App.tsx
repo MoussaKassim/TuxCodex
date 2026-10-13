@@ -28,6 +28,7 @@ import {
   Search,
   Settings2,
   ShieldAlert,
+  ShieldCheck,
   Square,
   Terminal,
   Trash2,
@@ -110,7 +111,8 @@ export default function App() {
   const [projectParent, setProjectParent] = useState("");
   const [projectBusy, setProjectBusy] = useState(false);
   const [fullAccessConfirm, setFullAccessConfirm] = useState(false);
-  const [fullAccessAllowed, setFullAccessAllowed] = useState(true);
+  const [fullAccessAllowed, setFullAccessAllowed] = useState(!inDesktop);
+  const [fullAccessReason, setFullAccessReason] = useState("");
   const [wallpaperData, setWallpaperData] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<PreviewFile[]>([]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
@@ -206,7 +208,9 @@ export default function App() {
   const loadServer = useCallback(async (path: string, restart = false) => {
     setConnection("connecting");
     setConnectionDetail("Starting Codex app-server…");
-    setFullAccessAllowed(true);
+    setFullAccessAllowed(false);
+    setFullAccessReason("Checking Codex permission requirements…");
+    setFullAccessConfirm(false);
     setApprovalQueue([]);
     try {
       await connect(path, restart);
@@ -237,14 +241,20 @@ export default function App() {
         setAccount(info?.email || info?.type || null);
         setAuthMissing(Boolean(results[1].value.requiresOpenaiAuth && !info));
       }
-      if (results[3].status === "fulfilled") {
+      if (results[3].status === "fulfilled" && results[3].value && Object.hasOwn(results[3].value, "requirements")) {
         const requirements = results[3].value.requirements;
         const allowed = canEnableFullAccess(requirements);
         setFullAccessAllowed(allowed);
+        setFullAccessReason(allowed ? "" : "Full Access is disallowed by the Codex administrator's requirements.");
         if (!allowed) {
           setSettings((current) => ({ ...current, permissionMode: "standard" }));
           setDraftSettings((current) => ({ ...current, permissionMode: "standard" }));
         }
+      } else {
+        setFullAccessAllowed(false);
+        setFullAccessReason("Full Access is unavailable because Codex permission requirements could not be checked.");
+        setSettings((current) => ({ ...current, permissionMode: "standard" }));
+        setDraftSettings((current) => ({ ...current, permissionMode: "standard" }));
       }
       for (const result of results.slice(0, 3)) {
         if (result.status === "rejected") setError(errorText(result.reason));
@@ -252,6 +262,11 @@ export default function App() {
       setConnection("connected");
       setConnectionDetail("Connected to Codex app-server");
     } catch (failure) {
+      setFullAccessAllowed(false);
+      setFullAccessReason("Connect to Codex before enabling Full Access.");
+      setFullAccessConfirm(false);
+      setSettings((current) => ({ ...current, permissionMode: "standard" }));
+      setDraftSettings((current) => ({ ...current, permissionMode: "standard" }));
       setConnection("disconnected");
       setConnectionDetail(errorText(failure));
       setAuthMissing(false);
@@ -340,6 +355,11 @@ export default function App() {
           setConnectionDetail(event.payload);
           if (event.payload.toLowerCase().includes("disconnected")) {
             setConnection("disconnected");
+            setFullAccessAllowed(false);
+            setFullAccessReason("Connect to Codex before enabling Full Access.");
+            setFullAccessConfirm(false);
+            setSettings((current) => ({ ...current, permissionMode: "standard" }));
+            setDraftSettings((current) => ({ ...current, permissionMode: "standard" }));
             setApprovalQueue([]);
             activeTurnsRef.current.clear();
             turnRef.current = null;
@@ -938,14 +958,14 @@ export default function App() {
             </div>
           </div>
           {!selectedId && settings.cwd && <div className="worktree-create"><button onClick={() => void makeWorktree()} disabled={!inDesktop || creatingWorktree || busy}><GitBranch size={14} />{creatingWorktree ? "Creating worktree…" : "Create worktree from HEAD"}</button><span>Starts a separate checkout. Local uncommitted changes stay in the current checkout.</span></div>}
-          <div className="composer-hint"><span>{settings.permissionMode === "full" ? "Full Access is on: Codex can run without approval prompts." : "Standard permissions: Codex asks when approval is needed."}</span><span><kbd>Enter</kbd> send <b>·</b> <kbd>Shift Enter</kbd> new line</span></div>
+          <div className="composer-hint"><button type="button" className={`permission-toggle ${settings.permissionMode === "full" ? "full" : ""}`} disabled={busy || (settings.permissionMode !== "full" && !fullAccessAllowed)} onClick={() => { if (settings.permissionMode === "full") { setSettings((current) => ({ ...current, permissionMode: "standard" })); setDraftSettings((current) => ({ ...current, permissionMode: "standard" })); } else setFullAccessConfirm(true); }} aria-label={settings.permissionMode === "full" ? "Switch to Standard permissions" : "Switch to Full Access"} title={settings.permissionMode === "full" ? "Full Access is on. Click to return to Standard permissions." : fullAccessAllowed ? "Standard permissions ask when approval is needed. Click to enable Full Access." : fullAccessReason}>{settings.permissionMode === "full" ? <ShieldAlert size={13} /> : <ShieldCheck size={13} />}{settings.permissionMode === "full" ? "Full Access" : "Standard permissions"}</button><span><kbd>Enter</kbd> send <b>·</b> <kbd>Shift Enter</kbd> new line</span></div>
         </div>
       </main>
       {reviewOpen && <ReviewPanel chatDiff={diff} plan={plan} git={git} gitLoading={gitLoading} gitError={gitError} canReview={connection === "connected" && !busy && !gitLoading && Boolean(git?.files.length)} tab={reviewTab} onTabChange={setReviewTab} onRefreshGit={() => setGitRevision((revision) => revision + 1)} onReview={() => void reviewChanges()} onClose={() => setReviewOpen(false)} />}
 
-      {settingsOpen && <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="settings-modal" role="dialog" aria-modal="true" aria-label="Settings"><div className="modal-header"><div><span className="eyebrow">PREFERENCES</span><h2>Settings</h2></div><button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={20} /></button></div><div className="settings-content"><label><span>Workspace folder</span><small>Absolute path used for new Codex chats.</small><div className="path-picker"><input value={draftSettings.cwd} onChange={(event) => setDraftSettings({ ...draftSettings, cwd: event.target.value })} placeholder="/home/you/projects/my-app" />{inDesktop && <button type="button" className="secondary-button" onClick={() => void chooseWorkspace()}><FolderOpen size={15} /> Browse</button>}</div></label><label><span>Codex CLI path</span><small>Leave empty to find <code>codex</code> automatically.</small><input value={draftSettings.codexPath} onChange={(event) => setDraftSettings({ ...draftSettings, codexPath: event.target.value })} placeholder="/home/you/.local/bin/codex" /></label><div className="setting-picker"><span>Model</span><small>Click to choose; the next turn uses your selection immediately.</small><ModelPicker label="Model" value={settings.model} options={modelChoices} onChange={(model) => { setSettings((current) => ({ ...current, model, effort: "" })); setDraftSettings((current) => ({ ...current, model, effort: "" })); }} /></div><div className="setting-picker"><span>Permissions</span><small>Applies to the next turn in this app, including existing chats.</small><div className="permission-choices"><button type="button" className={settings.permissionMode !== "full" ? "selected" : ""} disabled={busy} onClick={() => { setSettings((current) => ({ ...current, permissionMode: "standard" })); setDraftSettings((current) => ({ ...current, permissionMode: "standard" })); }}>Standard</button><button type="button" className={settings.permissionMode === "full" ? "selected" : ""} disabled={busy || !fullAccessAllowed} onClick={() => setFullAccessConfirm(true)}>Full Access</button></div>{!fullAccessAllowed && <small>Full Access is disallowed by the Codex administrator's requirements.</small>}</div><button className="secondary-button" onClick={() => { setSettingsOpen(false); setAppearanceOpen(true); }}><Palette size={15} /> Open appearance</button><div className="server-info"><span className={`status-dot ${connection}`} /><div><strong>{connectionDetail}</strong><small>Authentication is managed by the Codex CLI. Run <code>codex login</code> in a terminal if needed.</small></div></div></div><div className="modal-footer"><button className="secondary-button" onClick={() => { saveSettings(); if (inDesktop) void loadServer(draftSettings.codexPath, true); }}><RotateCcw size={16} /> Save & restart server</button><button className="primary-button" onClick={saveSettings}>Save settings</button></div></section></div>}
+      {settingsOpen && <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="settings-modal" role="dialog" aria-modal="true" aria-label="Settings"><div className="modal-header"><div><span className="eyebrow">PREFERENCES</span><h2>Settings</h2></div><button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={20} /></button></div><div className="settings-content"><label><span>Workspace folder</span><small>Absolute path used for new Codex chats.</small><div className="path-picker"><input value={draftSettings.cwd} onChange={(event) => setDraftSettings({ ...draftSettings, cwd: event.target.value })} placeholder="/home/you/projects/my-app" />{inDesktop && <button type="button" className="secondary-button" onClick={() => void chooseWorkspace()}><FolderOpen size={15} /> Browse</button>}</div></label><label><span>Codex CLI path</span><small>Leave empty to find <code>codex</code> automatically.</small><input value={draftSettings.codexPath} onChange={(event) => setDraftSettings({ ...draftSettings, codexPath: event.target.value })} placeholder="/home/you/.local/bin/codex" /></label><div className="setting-picker"><span>Model</span><small>Click to choose; the next turn uses your selection immediately.</small><ModelPicker label="Model" value={settings.model} options={modelChoices} onChange={(model) => { setSettings((current) => ({ ...current, model, effort: "" })); setDraftSettings((current) => ({ ...current, model, effort: "" })); }} /></div><div className="setting-picker"><span>Permissions</span><small>Applies to the next turn in this app, including existing chats.</small><div className="permission-choices"><button type="button" className={settings.permissionMode !== "full" ? "selected" : ""} disabled={busy} onClick={() => { setSettings((current) => ({ ...current, permissionMode: "standard" })); setDraftSettings((current) => ({ ...current, permissionMode: "standard" })); }}>Standard</button><button type="button" className={settings.permissionMode === "full" ? "selected" : ""} disabled={busy || !fullAccessAllowed} onClick={() => setFullAccessConfirm(true)}>Full Access</button></div>{!fullAccessAllowed && <small>{fullAccessReason}</small>}</div><button className="secondary-button" onClick={() => { setSettingsOpen(false); setAppearanceOpen(true); }}><Palette size={15} /> Open appearance</button><div className="server-info"><span className={`status-dot ${connection}`} /><div><strong>{connectionDetail}</strong><small>Authentication is managed by the Codex CLI. Run <code>codex login</code> in a terminal if needed.</small></div></div></div><div className="modal-footer"><button className="secondary-button" onClick={() => { saveSettings(); if (inDesktop) void loadServer(draftSettings.codexPath, true); }}><RotateCcw size={16} /> Save & restart server</button><button className="primary-button" onClick={saveSettings}>Save settings</button></div></section></div>}
       {aboutOpen && <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setAboutOpen(false); }}><section className="settings-modal" role="dialog" aria-modal="true" aria-label="About TuxCodex"><div className="modal-header"><div><span className="eyebrow">ABOUT</span><h2>TuxCodex</h2></div><button className="icon-button" onClick={() => setAboutOpen(false)} aria-label="Close about"><X size={20} /></button></div><div className="about-content"><img src={logoIcon} alt="TuxCodex TX logo" /><p>An independent desktop interface for the local Codex CLI. Built with Tauri, React, and Rust.</p><strong>Authors and developers</strong><span>Moussa Kassim Mohame<br />Stefano Cacciatore</span><small>Unofficial project. Not affiliated with OpenAI.</small></div><div className="modal-footer"><button className="secondary-button" onClick={() => void openProject()}>Project on GitHub</button><button className="primary-button" onClick={() => setAboutOpen(false)}>Close</button></div></section></div>}
-      {fullAccessConfirm && <div className="modal-scrim permission-confirm"><section className="approval-modal" role="alertdialog" aria-modal="true" aria-label="Enable Full Access"><div className="approval-icon"><ShieldAlert size={24} /></div><span className="eyebrow">PERMISSION CHANGE</span><h2>Enable Full Access?</h2><p>Codex may read and change files outside this project, use the network, and run commands without asking you each time. Only enable this for work you trust. This setting applies to future turns and stays on until you switch back to Standard.</p><div className="approval-actions"><button className="secondary-button" onClick={() => setFullAccessConfirm(false)}>Cancel</button><button className="primary-button" onClick={() => { setSettings((current) => ({ ...current, permissionMode: "full" })); setDraftSettings((current) => ({ ...current, permissionMode: "full" })); setFullAccessConfirm(false); }}>Enable Full Access</button></div></section></div>}
+      {fullAccessConfirm && <div className="modal-scrim permission-confirm"><section className="approval-modal" role="alertdialog" aria-modal="true" aria-label="Enable Full Access"><div className="approval-icon"><ShieldAlert size={24} /></div><span className="eyebrow">PERMISSION CHANGE</span><h2>Enable Full Access?</h2><p>Codex may read and change files outside this project, use the network, and run commands without asking you each time. Only enable this for work you trust. This setting applies to future turns. You can switch back to Standard at any time.</p><div className="approval-actions"><button className="secondary-button" onClick={() => setFullAccessConfirm(false)}>Cancel</button><button className="primary-button" onClick={() => { setSettings((current) => ({ ...current, permissionMode: "full" })); setDraftSettings((current) => ({ ...current, permissionMode: "full" })); setFullAccessConfirm(false); }}>Enable Full Access</button></div></section></div>}
       {appearanceOpen && <AppearancePanel settings={settings} onChange={(change) => { setSettings((current) => ({ ...current, ...change })); setDraftSettings((current) => ({ ...current, ...change })); }} onImport={() => void chooseWallpaper()} onClose={() => setAppearanceOpen(false)} />}
       {projectOpen && <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setProjectOpen(false); }}><section className="settings-modal" role="dialog" aria-modal="true" aria-label="New project"><div className="modal-header"><div><span className="eyebrow">WORKSPACE</span><h2>New project</h2></div><button className="icon-button" onClick={() => setProjectOpen(false)} aria-label="Close new project"><X size={20} /></button></div><div className="settings-content"><label><span>Project name</span><small>A new folder with this name will be created.</small><input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="My project" autoFocus /></label><label><span>Parent folder</span><small>Choose where the new project folder should live.</small><div className="path-picker"><input value={projectParent} onChange={(event) => setProjectParent(event.target.value)} placeholder="/home/you/projects" />{inDesktop && <button type="button" className="secondary-button" onClick={() => void chooseProjectParent()}><FolderOpen size={15} /> Browse</button>}</div></label>{!inDesktop && <small>Project creation is available in the desktop app.</small>}</div><div className="modal-footer"><button className="secondary-button" onClick={() => setProjectOpen(false)}>Cancel</button><button className="primary-button" disabled={!inDesktop || !projectName.trim() || !projectParent.trim() || projectBusy} onClick={() => void makeProject()}>{projectBusy ? "Creating…" : "Create project"}</button></div></section></div>}
 

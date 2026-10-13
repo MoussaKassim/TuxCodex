@@ -37,9 +37,22 @@ if [[ ${1:-} == --session ]]; then
   xdotool key Return
 
   for attempt in {1..30}; do
-    if grep -Fq '"method":"thread/start"' "$protocol_log" && grep -Fq '"text":"TuxCodex system smoke prompt"' "$protocol_log"; then
-      printf '{"windowVisible":true,"threadCreated":true,"chatSent":true}\n' >"$report"
-      echo 'TuxCodex sent a chat from the packaged window through the Rust bridge.'
+    if node --input-type=commonjs - "$protocol_log" "$prompt" <<'NODE'
+const fs = require("node:fs");
+const [log, prompt] = process.argv.slice(2);
+let requests;
+try { requests = fs.readFileSync(log, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse); }
+catch { process.exit(1); }
+const thread = requests.find((entry) => entry.method === "thread/start");
+const turn = requests.find((entry) => entry.method === "turn/start");
+if (!thread || !turn) process.exit(1);
+if (thread.params.approvalPolicy !== "onRequest" || thread.params.sandbox !== "workspaceWrite") process.exit(1);
+if (turn.params.approvalPolicy !== "onRequest" || turn.params.sandboxPolicy?.type !== "workspaceWrite") process.exit(1);
+if (!turn.params.input?.some((item) => item.type === "text" && item.text === prompt)) process.exit(1);
+NODE
+    then
+      printf '{"windowVisible":true,"threadCreated":true,"chatSent":true,"standardPermissions":true}\n' >"$report"
+      echo 'TuxCodex sent a Standard-permission chat from the packaged window through the Rust bridge.'
       exit 0
     fi
     if ! kill -0 "$app_pid" 2>/dev/null; then break; fi

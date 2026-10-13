@@ -100,6 +100,20 @@ describe("TuxCodex desktop workflows", () => {
     await waitFor(() => expect(requests("turn/start")).toHaveLength(1));
     expect(requests("thread/start")[0]).toMatchObject({ approvalPolicy: "never", sandbox: "dangerFullAccess" });
     expect(requests("turn/start")[0]).toMatchObject({ approvalPolicy: "never", sandboxPolicy: { type: "dangerFullAccess" } });
+    act(() => bridge.listeners.get("codex-status")?.({ payload: "Codex app-server disconnected." }));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}").permissionMode).toBe("standard"));
+  });
+
+  it("switches permission modes from the composer without bypassing confirmation", async () => {
+    render(<App />);
+    await screen.findByText("Codex connected");
+    fireEvent.click(screen.getByRole("button", { name: "Switch to Full Access" }));
+    expect(screen.getByRole("alertdialog", { name: "Enable Full Access" })).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}").permissionMode).toBe("standard");
+    fireEvent.click(screen.getByRole("button", { name: "Enable Full Access" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Switch to Standard permissions" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Switch to Standard permissions" }));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}").permissionMode).toBe("standard"));
   });
 
   it("disables Full Access when administrator requirements forbid it", async () => {
@@ -113,6 +127,25 @@ describe("TuxCodex desktop workflows", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Settings" })[0]);
     expect(screen.getByRole("button", { name: "Full Access" })).toBeDisabled();
     expect(screen.getByText("Full Access is disallowed by the Codex administrator's requirements.")).toBeInTheDocument();
+  });
+
+  it("falls back to Standard if permission requirements cannot be checked", async () => {
+    localStorage.setItem("tuxcodex-settings", JSON.stringify({ permissionMode: "full", theme: "system" }));
+    const base = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation(async (command: string, args?: { method?: string }) => {
+      if (command === "rpc" && args?.method === "configRequirements/read") throw new Error("requirements unavailable");
+      return base(command, args);
+    });
+    render(<App />);
+    await screen.findByText("Codex connected");
+    fireEvent.click(screen.getAllByRole("button", { name: "Settings" })[0]);
+    expect(screen.getByRole("button", { name: "Full Access" })).toBeDisabled();
+    expect(screen.getByText("Full Access is unavailable because Codex permission requirements could not be checked.")).toBeInTheDocument();
+    await waitFor(() => expect(JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}").permissionMode).toBe("standard"));
+    fireEvent.click(screen.getByRole("button", { name: "Close settings" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Message to Codex" }), { target: { value: "Inspect this repo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await waitFor(() => expect(requests("thread/start")[0]).toMatchObject({ approvalPolicy: "onRequest", sandbox: "workspaceWrite" }));
   });
 
   it("restores an audio attachment and draft when an older server rejects audio", async () => {
