@@ -1,6 +1,6 @@
 [package]
 name = "tuxcodex"
-version = "0.1.2"
+version = "0.1.3"
 description = "Community desktop interface for an installed Codex CLI"
 authors = ["Moussa Kassim Mohame", "Stefano Cacciatore"]
 edition = "2021"
