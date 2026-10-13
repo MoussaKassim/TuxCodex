@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compatiblePermissionParams, isPermissionEnumError, threadPermissionParams, turnPermissionParams } from "./permissions";
+import { canEnableFullAccess, compatiblePermissionParams, isPermissionEnumError, threadPermissionParams, turnPermissionParams } from "./permissions";
 
 describe("permission settings sent to Codex", () => {
   it("uses request approval and workspace sandbox in standard mode", () => {
@@ -16,5 +16,12 @@ describe("permission settings sent to Codex", () => {
     expect(compatiblePermissionParams({ ...threadPermissionParams("full") })).toEqual({ approvalPolicy: "never", sandbox: "danger-full-access" });
     expect(isPermissionEnumError("Invalid request: unknown variant `onRequest`")).toBe(true);
     expect(isPermissionEnumError("Invalid request: unknown variant `localAudio`")).toBe(false);
+  });
+  it("honors managed Full Access restrictions in both enum spellings", () => {
+    expect(canEnableFullAccess(null)).toBe(true);
+    expect(canEnableFullAccess({ allowedApprovalPolicies: ["onRequest", "never"], allowedSandboxModes: ["workspaceWrite", "dangerFullAccess"] })).toBe(true);
+    expect(canEnableFullAccess({ allowedApprovalPolicies: ["on-request", "never"], allowedSandboxModes: ["workspace-write", "danger-full-access"] })).toBe(true);
+    expect(canEnableFullAccess({ allowedApprovalPolicies: ["on-request"], allowedSandboxModes: ["danger-full-access"] })).toBe(false);
+    expect(canEnableFullAccess({ allowedApprovalPolicies: ["never"], allowedSandboxModes: ["workspace-write"] })).toBe(false);
   });
 });

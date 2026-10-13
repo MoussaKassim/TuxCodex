@@ -102,6 +102,19 @@ describe("TuxCodex desktop workflows", () => {
     expect(requests("turn/start")[0]).toMatchObject({ approvalPolicy: "never", sandboxPolicy: { type: "dangerFullAccess" } });
   });
 
+  it("disables Full Access when administrator requirements forbid it", async () => {
+    const base = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation(async (command: string, args?: { method?: string }) => {
+      if (command === "rpc" && args?.method === "configRequirements/read") return { requirements: { allowedApprovalPolicies: ["on-request"], allowedSandboxModes: ["workspace-write"] } };
+      return base(command, args);
+    });
+    render(<App />);
+    await screen.findByText("Codex connected");
+    fireEvent.click(screen.getAllByRole("button", { name: "Settings" })[0]);
+    expect(screen.getByRole("button", { name: "Full Access" })).toBeDisabled();
+    expect(screen.getByText("Full Access is disallowed by the Codex administrator's requirements.")).toBeInTheDocument();
+  });
+
   it("restores an audio attachment and draft when an older server rejects audio", async () => {
     bridge.open.mockResolvedValue("/tmp/voice.wav");
     const base = bridge.invoke.getMockImplementation()!;

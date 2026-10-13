@@ -41,7 +41,7 @@ import ReviewPanel, { type ReviewTab } from "./ReviewPanel";
 import ModelPicker from "./ModelPicker";
 import AppearancePanel from "./AppearancePanel";
 import { wallpaperImage } from "./wallpapers";
-import { threadPermissionParams, turnPermissionParams } from "./permissions";
+import { canEnableFullAccess, threadPermissionParams, turnPermissionParams } from "./permissions";
 import FileViewer from "./FileViewer";
 import AudioClip from "./AudioClip";
 import GeneratedImages from "./GeneratedImages";
@@ -237,7 +237,7 @@ export default function App() {
       }
       if (results[3].status === "fulfilled") {
         const requirements = results[3].value.requirements;
-        const allowed = (!requirements?.allowedApprovalPolicies || requirements.allowedApprovalPolicies.includes("never")) && (!requirements?.allowedSandboxModes || requirements.allowedSandboxModes.includes("dangerFullAccess"));
+        const allowed = canEnableFullAccess(requirements);
         setFullAccessAllowed(allowed);
         if (!allowed) {
           setSettings((current) => ({ ...current, permissionMode: "standard" }));

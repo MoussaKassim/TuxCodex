@@ -1,5 +1,15 @@
 import type { Settings } from "./types";
 
+export interface PermissionRequirements {
+  allowedApprovalPolicies?: string[] | null;
+  allowedSandboxModes?: string[] | null;
+}
+
+export function canEnableFullAccess(requirements: PermissionRequirements | null | undefined): boolean {
+  return (!requirements?.allowedApprovalPolicies || requirements.allowedApprovalPolicies.includes("never"))
+    && (!requirements?.allowedSandboxModes || requirements.allowedSandboxModes.some((mode) => mode === "dangerFullAccess" || mode === "danger-full-access"));
+}
+
 export function threadPermissionParams(mode: Settings["permissionMode"]): Record<string, string> {
   return mode === "full"
     ? { approvalPolicy: "never", sandbox: "dangerFullAccess" }
