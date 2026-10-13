@@ -11,7 +11,11 @@ use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::{oneshot, Mutex};
 use tokio::time::{timeout, Duration};
 
+mod audio;
+mod files;
 mod git;
+mod project;
+mod wallpaper;
 
 #[derive(Default)]
 struct Backend {
@@ -154,6 +158,7 @@ fn is_allowed_method(method: &str) -> bool {
     matches!(
         method,
         "account/read"
+            | "configRequirements/read"
             | "model/list"
             | "thread/start"
             | "thread/resume"
@@ -371,7 +376,16 @@ pub fn run() {
             rpc,
             respond_approval,
             git::git_snapshot,
-            git::create_worktree
+            git::create_worktree,
+            project::create_project,
+            wallpaper::import_wallpaper,
+            wallpaper::read_wallpaper,
+            files::preview_file,
+            files::open_workspace_file,
+            files::copy_workspace_file,
+            audio::import_audio,
+            audio::save_recording,
+            audio::read_audio
         ])
         .run(tauri::generate_context!())
         .expect("failed to run TuxCodex");

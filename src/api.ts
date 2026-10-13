@@ -1,5 +1,5 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import type { ChatItem, CreatedWorktree, GitSnapshot, ServerMessage } from "./types";
+import type { ChatItem, CreatedWorktree, GitSnapshot, PreviewFile, ServerMessage } from "./types";
 
 export const inDesktop = isTauri();
 
@@ -21,6 +21,42 @@ export async function gitSnapshot(cwd: string): Promise<GitSnapshot> {
 
 export async function createWorktree(cwd: string): Promise<CreatedWorktree> {
   return invoke<CreatedWorktree>("create_worktree", { cwd });
+}
+
+export async function createProject(parent: string, name: string): Promise<{ path: string; name: string }> {
+  return invoke("create_project", { parent, name });
+}
+
+export async function importWallpaper(source: string): Promise<[string, string]> {
+  return invoke("import_wallpaper", { source });
+}
+
+export async function readWallpaper(path: string): Promise<string> {
+  return invoke("read_wallpaper", { path });
+}
+
+export async function previewFile(cwd: string, path: string): Promise<PreviewFile> {
+  return invoke("preview_file", { cwd, path });
+}
+
+export async function openWorkspaceFile(cwd: string, path: string, reveal: boolean): Promise<void> {
+  await invoke("open_workspace_file", { cwd, path, reveal });
+}
+
+export async function copyWorkspaceFile(cwd: string, path: string, destination: string): Promise<void> {
+  await invoke("copy_workspace_file", { cwd, path, destination });
+}
+
+export async function importAudio(source: string): Promise<string> {
+  return invoke("import_audio", { source });
+}
+
+export async function saveRecording(dataUrl: string): Promise<string> {
+  return invoke("save_recording", { dataUrl });
+}
+
+export async function readAudio(path: string): Promise<string> {
+  return invoke("read_audio", { path });
 }
 
 export function errorText(error: unknown): string {
@@ -47,18 +83,22 @@ export function threadItems(raw: unknown): ChatItem[] {
             if (input.type === "text") return input.text || "";
             if (input.type === "localImage") return `[Image: ${input.path?.split(/[\\/]/).at(-1) || "attachment"}]`;
             if (input.type === "image") return "[Image attachment]";
+            if (input.type === "localAudio") return `[Audio: ${input.path?.split(/[\\/]/).at(-1) || "clip"}]`;
+            if (input.type === "audio") return "[Audio attachment]";
             return "";
           })
           .filter(Boolean)
           .join("\n");
-        if (text) items.push({ id, role: "user", text });
+        const audioPaths = content.map((part) => part as { type?: string; path?: string }).filter((part) => part.type === "localAudio" && typeof part.path === "string").map((part) => part.path!);
+        const audioUrls = content.map((part) => part as { type?: string; url?: string }).filter((part) => part.type === "audio" && typeof part.url === "string" && part.url.startsWith("data:audio/")).map((part) => part.url!);
+        if (text || audioPaths.length || audioUrls.length) items.push({ id, role: "user", text, audioPaths, audioUrls });
       } else if (item.type === "agentMessage" && typeof item.text === "string") {
         items.push({ id, role: "assistant", text: item.text });
       } else if (item.type === "commandExecution") {
         items.push({ id, role: "activity", kind: "Command", text: String(item.command || "Command"), status: String(item.status || ""), detail: String(item.aggregatedOutput || "") });
       } else if (item.type === "fileChange") {
         const changes = Array.isArray(item.changes) ? item.changes as { path?: string; diff?: string }[] : [];
-        items.push({ id, role: "activity", kind: "Files", text: changes.length === 1 ? changes[0].path || "File changes" : `${changes.length} files changed`, status: String(item.status || ""), detail: changes.map((change) => change.diff || "").filter(Boolean).join("\n") });
+        items.push({ id, role: "activity", kind: "Files", text: changes.length === 1 ? changes[0].path || "File changes" : `${changes.length} files changed`, status: String(item.status || ""), detail: changes.map((change) => change.diff || "").filter(Boolean).join("\n"), files: changes.map((change) => change.path).filter((path): path is string => Boolean(path)) });
       }
     }
   }

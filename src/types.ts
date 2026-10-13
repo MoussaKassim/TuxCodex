@@ -50,6 +50,18 @@ export interface ChatItem {
   status?: string;
   kind?: string;
   detail?: string;
+  files?: string[];
+  audioPaths?: string[];
+  audioUrls?: string[];
+}
+
+export interface PreviewFile {
+  path: string;
+  name: string;
+  kind: "image" | "pdf" | "html" | "text";
+  dataUrl?: string;
+  text?: string;
+  workspace?: string;
 }
 
 export interface ServerMessage {
@@ -63,5 +75,13 @@ export interface Settings {
   cwd: string;
   model: string;
   effort: string;
-  theme: "system" | "dark" | "light";
+  permissionMode?: "standard" | "full";
+  theme: "system" | "dark" | "light" | "custom";
+  backgroundColor?: string;
+  textColor?: string;
+  accentColor?: string;
+  wallpaper?: string;
+  wallpaperOpacity?: number;
+  wallpaperBlur?: number;
+  wallpaperBrightness?: number;
 }

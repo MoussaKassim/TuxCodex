@@ -1,0 +1,19 @@
+export interface Wallpaper { id: string; name: string; category: string; image: string }
+
+function svg(content: string): string {
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">${content}</svg>`)}`;
+}
+
+export const wallpapers: Wallpaper[] = [
+  { id: "forest", name: "Forest", category: "Nature", image: svg('<defs><linearGradient id="g" x2="0" y2="1"><stop stop-color="#143650"/><stop offset="1" stop-color="#102821"/></linearGradient></defs><rect width="1200" height="800" fill="url(#g)"/><circle cx="895" cy="135" r="85" fill="#d9cfa0" opacity=".65"/><path d="M0 580Q260 430 530 550T1200 510V800H0" fill="#163c36"/><g fill="#0c2929"><path d="M80 750V240l-90 400 90-40 90 40zM340 800V140L190 670l150-70 140 80zM700 800V270L560 690l140-60 130 60zM1020 800V100L850 680l170-60 180 80z"/></g>') },
+  { id: "hills", name: "Hills", category: "Landscapes", image: svg('<defs><linearGradient id="s" x2="0" y2="1"><stop stop-color="#334f70"/><stop offset="1" stop-color="#ddaa86"/></linearGradient></defs><rect width="1200" height="800" fill="url(#s)"/><circle cx="890" cy="220" r="88" fill="#f0ca9d"/><path d="M0 540Q280 300 570 545T1200 470V800H0" fill="#35515b"/><path d="M0 690Q320 420 650 650T1200 590V800H0" fill="#263f47"/>') },
+  { id: "mountains", name: "Summit", category: "Mountains", image: svg('<defs><linearGradient id="s" x2="0" y2="1"><stop stop-color="#182c4d"/><stop offset="1" stop-color="#8b9cb2"/></linearGradient></defs><rect width="1200" height="800" fill="url(#s)"/><path d="M0 680 290 240 570 680zM300 710 710 115l430 595zM850 680l200-320 200 320z" fill="#283e58"/><path d="m580 305 130-190 145 200-82-56-59 23-55-28zM220 345l70-105 74 117-76-33z" fill="#b9ccd5"/><path d="M0 690q310-90 600 0t600-20v130H0" fill="#182c3b"/>') },
+  { id: "ocean", name: "Blue Hour", category: "Oceans", image: svg('<defs><linearGradient id="s" x2="0" y2="1"><stop stop-color="#152b4c"/><stop offset=".55" stop-color="#436986"/><stop offset="1" stop-color="#092b42"/></linearGradient></defs><rect width="1200" height="800" fill="url(#s)"/><circle cx="850" cy="270" r="94" fill="#d8cbb2" opacity=".8"/><path d="M0 460q140-28 300 0t300 0 300 0 300 0v340H0" fill="#174665"/><path d="M0 560q180-40 350 0t350 0 350 0 350 0v240H0" fill="#0c354e"/><path d="M0 680q120-20 280 0t300 0 300 0 320 0" fill="none" stroke="#9fc8cc" stroke-width="6" opacity=".35"/>') },
+  { id: "minimal", name: "Quiet Shapes", category: "Minimalist", image: svg('<rect width="1200" height="800" fill="#263d43"/><circle cx="980" cy="180" r="240" fill="#678e84" opacity=".55"/><circle cx="330" cy="650" r="360" fill="#a2a18a" opacity=".33"/><path d="M-50 740 500 190l370 370 400-400" fill="none" stroke="#d8c5a3" stroke-width="34" opacity=".28"/>') },
+  { id: "circuit", name: "Circuit", category: "Technology", image: svg('<rect width="1200" height="800" fill="#0c1f2f"/><defs><pattern id="p" width="100" height="100" patternUnits="userSpaceOnUse"><path d="M0 50h50v50M100 25H75V0" fill="none" stroke="#2b7180" stroke-width="2" opacity=".5"/><circle cx="50" cy="50" r="5" fill="#7de0c0" opacity=".6"/></pattern></defs><rect width="1200" height="800" fill="url(#p)"/><circle cx="880" cy="400" r="300" fill="#216b75" opacity=".14"/><circle cx="880" cy="400" r="170" fill="none" stroke="#66b9b3" stroke-width="3" opacity=".45"/>') },
+  { id: "abstract", name: "Flow", category: "Abstract", image: svg('<rect width="1200" height="800" fill="#25273e"/><path d="M-150 580Q200 180 590 490T1350 130v450Q860 970 480 640T-150 950" fill="#655b92" opacity=".75"/><path d="M-150 250Q210-110 610 245T1350 160" fill="none" stroke="#c1799b" stroke-width="135" opacity=".45"/><circle cx="830" cy="600" r="200" fill="#d6ad80" opacity=".2"/>') },
+];
+
+export function wallpaperImage(id: string): string | undefined {
+  return wallpapers.find((wallpaper) => wallpaper.id === id)?.image;
+}

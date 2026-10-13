@@ -7,19 +7,22 @@ The repository also contains Moussa's earlier Python/GTK 3 prototype as [`codex-
 ## Features
 
 - **Codex server lifecycle:** starts the installed Codex CLI in the background, reports connection status, and lets you restart it from Settings. The app searches common user installation paths and accepts an explicit CLI path.
-- **Projects and chats:** groups local Codex threads by workspace, keeps recently selected workspaces in the sidebar for quick switching, searches thread titles and paths, reads existing history, and offers archive or confirmed permanent deletion. Choose a workspace with the native folder picker or enter its path.
+- **Projects and chats:** groups local Codex threads by workspace, creates a new project folder, keeps recently selected workspaces in the sidebar for quick switching, searches thread titles and paths, reads existing history, and offers archive or confirmed permanent deletion. Choose a workspace with the native folder picker or enter its path.
 - **Live work and review:** streams rendered Markdown replies, shows command output on demand, and displays chat file diffs, live plan steps, and Git working-tree changes in a review panel. You can ask the official Codex reviewer to review uncommitted changes. Enter sends a message, Shift+Enter adds a line, and the stop button interrupts an active turn.
 - **Git worktrees:** creates a separate detached checkout from the selected repository's current `HEAD` for a new chat. Worktrees are stored in TuxCodex's app-local data directory and remain available until you remove them with Git. Local uncommitted and ignored files are not copied.
 - **Approvals:** displays command and file-change approval requests. You can allow one request or decline it. Unanswered requests are declined after five minutes. Other server-initiated requests are rejected until the client supports them explicitly.
-- **Model and effort:** loads available models and their supported reasoning efforts from `model/list`; choose them in the composer or use the CLI defaults.
+- **Model and effort:** loads available models and their supported reasoning efforts from `model/list`; choose them with click-to-open pickers in the composer or use the CLI defaults.
 - **Image input:** attach up to five local PNG, JPEG, or WebP images with a message. The selected paths are sent to the local app-server as `localImage` inputs; TuxCodex stores no image copies.
-- **Appearance and preview:** dark, light, and system themes. If the CLI cannot start, the desktop app shows a disconnected state and a Retry action. The browser-only preview uses sample data.
+- **Audio input and playback:** attach WAV, MP3, M4A, WebM, or Ogg clips, record a voice message, and play clips from chat history. Where the webview offers speech recognition, dictated words also appear in the composer. Audio input depends on the selected Codex model and app-server version.
+- **Files and previews:** open supported workspace images, PDF, HTML, and text files in a tabbed viewer. Markdown image references can render inline; file paths in replies and code changes can open a preview. The viewer can zoom images and PDFs, save a copy, open the file in another app, or reveal it in the file manager. HTML previews are static and sandboxed. Files outside the active workspace are rejected.
+- **Permissions:** Standard uses workspace-write sandboxing and asks before escalated actions. Full Access requires an explicit confirmation and requests unrestricted sandboxing for future turns. A Codex administrator's requirements can disallow Full Access.
+- **Appearance and preview:** system, dark, light, and custom color themes, seven built-in wallpapers, imported images, and wallpaper opacity, blur, and brightness controls. If the CLI cannot start, the desktop app shows a disconnected state and a Retry action. The browser-only preview uses sample data.
 
 TuxCodex uses the local Codex authentication and configuration. Sign in with the CLI before opening the desktop app. It does not collect or store an API key in its own settings.
 
 ## Download and install
 
-Installers are published in [GitHub Releases](https://github.com/MoussaKassim/TuxCodex/releases). The first preview release provides:
+Installers are published in [GitHub Releases](https://github.com/MoussaKassim/TuxCodex/releases). The first preview release provides the original feature set; changes on `main` reach installers after the next tagged release.
 
 | System | Package | Architecture |
 | --- | --- | --- |
@@ -93,24 +96,26 @@ Rust bridge (src-tauri/src/lib.rs)
 codex app-server (installed Codex CLI)
 ```
 
-The Rust bridge initializes one app-server process, correlates requests with responses, forwards streamed events, and handles approval replies. The frontend reads thread history from Codex using `thread/read`; it does not maintain a separate SQLite cache. The user's Codex configuration controls authentication, sandboxing, and default approval policy. The UI does not silently approve commands or file changes.
+The Rust bridge initializes one app-server process, correlates requests with responses, forwards streamed events, and handles approval replies. The frontend reads thread history from Codex using `thread/read`; it does not maintain a separate SQLite cache. The user's Codex configuration controls authentication. The app requests the sandbox and approval policy selected in Settings for each new turn; server requirements can restrict those choices. The UI does not silently approve commands or file changes in Standard mode.
 
 The app-server protocol changes with Codex versions. The [official App Server documentation](https://learn.chatgpt.com/docs/app-server) is the source for supported methods and event shapes. The model list is a picker catalog, not proof that a particular account can run every listed model.
 
 ## Roadmap toward Codex desktop parity
 
-The most useful next additions are worktree handoff and cleanup, a branch selector when starting a worktree, an integrated terminal, general file attachments, and richer search across chat content. Later milestones can cover skills and plugins, scheduled tasks, and voice input. The Git review tab is read-only: it shows staged, unstaged, and small untracked text changes but does not yet stage, revert, or commit files. Large or binary untracked files appear in its file list without a text diff.
+The most useful next additions are worktree handoff and cleanup, a branch selector when starting a worktree, an integrated terminal, general file attachments, and richer search across chat content. Later milestones can cover skills and plugins, scheduled tasks, and a deeper Git workflow. The Git review tab is read-only: it shows staged, unstaged, and small untracked text changes but does not yet stage, revert, or commit files. Large or binary untracked files appear in its file list without a text diff.
 
 If a turn fails with a model-not-supported message, update the Codex CLI and restart TuxCodex. An older CLI can return a stale default model even when authentication succeeds. You can also choose another listed model in Settings, but only a successful turn confirms access.
 
 ## Tests and continuous integration
 
 ```bash
+npm test
+npm run test:coverage
 npm run build
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-The workflow in `.github/workflows/ci.yml` builds and tests Ubuntu, Fedora, Windows, and both macOS architectures. Version tags publish the installers and SHA-256 checksums to GitHub Releases. Running a real inference turn requires an authenticated Codex account; build and UI checks alone do not verify that service connection. The packages need interactive smoke tests on each target operating system.
+The workflow in `.github/workflows/ci.yml` runs frontend and Rust tests, then builds Ubuntu, Fedora, Windows, and both macOS architectures. Version tags publish the installers and SHA-256 checksums to GitHub Releases. Running a real inference turn requires an authenticated Codex account; build and UI checks alone do not verify that service connection. The packages need interactive smoke tests on each target operating system.
 
 ## Earlier GTK prototype
 
