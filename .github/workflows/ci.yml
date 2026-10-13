@@ -4,12 +4,42 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  app-server-protocol:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - codex-version: "0.143.0"
+            audioSchema: "false"
+          - codex-version: "latest"
+            audioSchema: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm install --global @openai/codex@${{ matrix.codex-version }}
+      - run: npm run test:app-server
+        env:
+          TUXCODEX_EXPECT_AUDIO_SCHEMA: ${{ matrix.audioSchema }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-app-server-${{ matrix.codex-version }}
+          path: test-results/app-server.xml
+          if-no-files-found: warn
+
   ubuntu:
     runs-on: ubuntu-24.04
     steps:
@@ -28,6 +58,14 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
       - run: npm ci
       - run: npm run test:coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-ubuntu
+          path: |
+            test-results/frontend.xml
+            coverage/
+          if-no-files-found: warn
       - run: npm run build
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles deb
@@ -51,6 +89,12 @@ jobs:
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - run: npm ci
       - run: npm test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-fedora
+          path: test-results/frontend.xml
+          if-no-files-found: warn
       - run: npm run build
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles rpm
@@ -74,6 +118,12 @@ jobs:
           workspaces: src-tauri -> target
       - run: npm ci
       - run: npm test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-windows
+          path: test-results/frontend.xml
+          if-no-files-found: warn
       - run: npm run build
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles nsis
@@ -109,6 +159,12 @@ jobs:
           workspaces: src-tauri -> target
       - run: npm ci
       - run: npm test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-macos-${{ matrix.label }}
+          path: test-results/frontend.xml
+          if-no-files-found: warn
       - run: npm run build
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --target ${{ matrix.target }} --bundles dmg
@@ -120,7 +176,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [ubuntu, fedora, windows, macos]
+    needs: [app-server-protocol, ubuntu, fedora, windows, macos]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

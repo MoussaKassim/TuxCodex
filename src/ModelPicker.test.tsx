@@ -20,4 +20,19 @@ describe("ModelPicker", () => {
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(change).not.toHaveBeenCalled();
   });
+  it("supports arrow and Home/End keyboard navigation", () => {
+    const change = vi.fn();
+    render(<ModelPicker label="Reasoning effort" value="low" options={[
+      { value: "low", label: "Low" }, { value: "medium", label: "Medium" }, { value: "high", label: "High" },
+    ]} onChange={change} />);
+    const trigger = screen.getByRole("button", { name: "Reasoning effort" });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    expect(screen.getByRole("option", { name: "Medium" })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "End" });
+    expect(screen.getByRole("option", { name: "High" })).toHaveFocus();
+    fireEvent.click(screen.getByRole("option", { name: "High" }));
+    expect(change).toHaveBeenCalledWith("high");
+    expect(trigger).toHaveFocus();
+  });
 });

@@ -1,5 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { ChatItem, CreatedWorktree, GitSnapshot, PreviewFile, ServerMessage } from "./types";
+import { compatiblePermissionParams, isPermissionEnumError } from "./permissions";
 
 export const inDesktop = isTauri();
 
@@ -9,6 +10,19 @@ export async function connect(codexPath: string, restart = false): Promise<void>
 
 export async function rpc<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
   return invoke<T>("rpc", { method, params });
+}
+
+// App-server releases differ in how thread-level permissions are serialized.
+// Retry only when the server explicitly rejects one of our enum spellings.
+export async function rpcWithPermissions<T = unknown>(method: "thread/start" | "thread/resume" | "turn/start", params: Record<string, unknown>): Promise<T> {
+  try {
+    return await rpc<T>(method, params);
+  } catch (error) {
+    if (!isPermissionEnumError(errorText(error))) throw error;
+    const compatible = compatiblePermissionParams(params);
+    if (!compatible) throw error;
+    return rpc<T>(method, compatible);
+  }
 }
 
 export async function respondApproval(id: number, decision: "accept" | "decline"): Promise<void> {

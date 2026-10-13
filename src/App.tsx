@@ -33,7 +33,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { connect, copyWorkspaceFile, createProject, createWorktree, errorText, gitSnapshot, importAudio, importWallpaper, inDesktop, methodThreadId, openWorkspaceFile, previewFile, readWallpaper, respondApproval, rpc, saveRecording, threadItems } from "./api";
+import { connect, copyWorkspaceFile, createProject, createWorktree, errorText, gitSnapshot, importAudio, importWallpaper, inDesktop, methodThreadId, openWorkspaceFile, previewFile, readWallpaper, respondApproval, rpc, rpcWithPermissions, saveRecording, threadItems } from "./api";
 import type { ChatItem, GitSnapshot, Model, PreviewFile, ServerMessage, Settings, Thread } from "./types";
 import type { PlanStep } from "./types";
 import MarkdownMessage from "./MarkdownMessage";
@@ -44,6 +44,7 @@ import { wallpaperImage } from "./wallpapers";
 import { threadPermissionParams, turnPermissionParams } from "./permissions";
 import FileViewer from "./FileViewer";
 import AudioClip from "./AudioClip";
+import GeneratedImages from "./GeneratedImages";
 
 interface SpeechResultEvent { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }
 interface SpeechRecognitionLike { continuous: boolean; interimResults: boolean; onresult: ((event: SpeechResultEvent) => void) | null; start(): void; stop(): void }
@@ -440,7 +441,6 @@ export default function App() {
       setError("The selected model does not support images. Remove the attachments or choose another model.");
       return;
     }
-    if (audio.length && !modelSupportsAudio) { setError("The selected model does not support audio. Choose another model or remove the audio."); return; }
     setDraft("");
     setAttachments([]);
     setAudioAttachments([]);
@@ -468,6 +468,7 @@ export default function App() {
     }
     const selectionVersion = selectionVersionRef.current;
     let id = selectedRef.current;
+    let newlyStarted = false;
     let optimisticId: string | null = null;
     try {
       if (!id) {
@@ -475,8 +476,9 @@ export default function App() {
         if (settings.cwd.trim()) params.cwd = settings.cwd.trim();
         if (settings.model) params.model = settings.model;
         Object.assign(params, threadPermissionParams(settings.permissionMode));
-        const result = await rpc<{ thread: Thread }>("thread/start", params);
+        const result = await rpcWithPermissions<{ thread: Thread }>("thread/start", params);
         id = result.thread.id;
+        newlyStarted = true;
         activeTurnsRef.current.set(id, null);
         if (selectionVersionRef.current === selectionVersion) {
           selectedRef.current = id;
@@ -485,14 +487,14 @@ export default function App() {
         }
       } else {
         activeTurnsRef.current.set(id, null);
-        await rpc("thread/resume", { threadId: id, ...threadPermissionParams(settings.permissionMode) });
+        await rpcWithPermissions("thread/resume", { threadId: id, ...threadPermissionParams(settings.permissionMode) });
       }
       const localId = `local-${Date.now()}`;
       if (selectionVersionRef.current === selectionVersion) {
         optimisticId = localId;
         setItems((previous) => [...previous, { id: localId, role: "user", text: [text, ...images.map((path) => `[Image: ${shortPath(path)}]`)].filter(Boolean).join("\n"), audioPaths: audio }]);
       }
-      const result = await rpc<{ turn: { id: string } }>("turn/start", {
+      const result = await rpcWithPermissions<{ turn: { id: string } }>("turn/start", {
         threadId: id,
         input: [...(text ? [{ type: "text", text }] : []), ...images.map((path) => ({ type: "localImage", path })), ...audio.map((path) => ({ type: "localAudio", path }))],
         ...(settings.model ? { model: settings.model } : {}),
@@ -508,12 +510,14 @@ export default function App() {
       if (id) activeTurnsRef.current.delete(id);
       if (selectionVersionRef.current === selectionVersion) {
         setBusy(false);
+        if (newlyStarted) { selectedRef.current = null; setSelectedId(null); }
         if (optimisticId) setItems((previous) => previous.filter((item) => item.id !== optimisticId));
         setDraft((current) => current || text);
         setAttachments((current) => Array.from(new Set([...images, ...current])).slice(0, 5));
         setAudioAttachments((current) => Array.from(new Set([...audio, ...current])).slice(0, 3));
       }
-      setError(errorText(failure));
+      const message = errorText(failure);
+      setError(message.includes("unknown variant `localAudio`") ? "This Codex CLI does not support audio input. Update Codex or send a text transcript." : message);
     }
   }
 
@@ -696,7 +700,7 @@ export default function App() {
         const params: Record<string, unknown> = { cwd: workspacePath };
         if (settings.model) params.model = settings.model;
         Object.assign(params, threadPermissionParams(settings.permissionMode));
-        const started = await rpc<{ thread: Thread }>("thread/start", params);
+        const started = await rpcWithPermissions<{ thread: Thread }>("thread/start", params);
         id = started.thread.id;
         activeTurnsRef.current.set(id, null);
         if (selectionVersionRef.current === selectionVersion) {
@@ -706,7 +710,7 @@ export default function App() {
         }
       } else {
         activeTurnsRef.current.set(id, null);
-        await rpc("thread/resume", { threadId: id, ...threadPermissionParams(settings.permissionMode) });
+        await rpcWithPermissions("thread/resume", { threadId: id, ...threadPermissionParams(settings.permissionMode) });
       }
       const localId = `review-${Date.now()}`;
       if (selectionVersionRef.current === selectionVersion) {
@@ -806,7 +810,6 @@ export default function App() {
   const activeModel = models.find((model) => (model.model || model.id) === settings.model) || models.find((model) => model.isDefault);
   const effortOptions = activeModel?.supportedReasoningEfforts || [];
   const modelSupportsImages = activeModel?.inputModalities?.includes("image") !== false;
-  const modelSupportsAudio = activeModel?.inputModalities?.includes("audio") !== false;
   const approval = approvalQueue[0];
   const approvalParams = approval?.params || {};
   const approvalCommand = typeof approvalParams.command === "string" ? approvalParams.command : "";
@@ -894,7 +897,12 @@ export default function App() {
           ) : (
             <div className="message-list">
               {items.map((item) => item.role === "activity" ? (
-                <div key={item.id} className="activity-wrap"><button className="activity-item" onClick={() => { if (item.kind === "Files") { setReviewTab("chat"); setReviewOpen(true); } else setExpandedActivity(expandedActivity === item.id ? null : item.id); }}><div className="activity-icon">{item.kind === "Command" ? <Command size={15} /> : <Code2 size={15} />}</div><div><strong>{item.kind}</strong><code>{item.text}</code></div><span className={`activity-status ${item.status}`}>{item.status === "inProgress" ? "Running" : item.status || "Done"}</span><ChevronDown size={14} /></button>{item.kind === "Files" && item.files?.length === 1 && <button className="activity-file-open" onClick={() => void openFile(item.files![0])}>Open file</button>}{expandedActivity === item.id && item.kind === "Command" && <pre className="activity-output">{item.detail || "No command output available."}</pre>}</div>
+                <div key={item.id} className="activity-wrap">
+                  <button className="activity-item" onClick={() => { if (item.kind === "Files") { setReviewTab("chat"); setReviewOpen(true); } else setExpandedActivity(expandedActivity === item.id ? null : item.id); }}><div className="activity-icon">{item.kind === "Command" ? <Command size={15} /> : <Code2 size={15} />}</div><div><strong>{item.kind}</strong><code>{item.text}</code></div><span className={`activity-status ${item.status}`}>{item.status === "inProgress" ? "Running" : item.status || "Done"}</span><ChevronDown size={14} /></button>
+                  {item.kind === "Files" && item.files && <div className="activity-file-list">{item.files.map((path) => <button key={path} className="activity-file-open" onClick={() => void openFile(path)} title={path}>Open file · {shortPath(path)}</button>)}</div>}
+                  {item.kind === "Files" && item.files && <GeneratedImages paths={item.files} cwd={workspacePath || ""} onOpenFile={(path) => void openFile(path)} />}
+                  {expandedActivity === item.id && item.kind === "Command" && <pre className="activity-output">{item.detail || "No command output available."}</pre>}
+                </div>
               ) : (
                 <div key={item.id} className={`message-row ${item.role}`}>
                   <div className={`avatar ${item.role}`}>{item.role === "assistant" ? <Terminal size={16} /> : "Y"}</div>
@@ -918,12 +926,12 @@ export default function App() {
               <div className="composer-controls">
                 <div className="composer-context"><FolderOpen size={15} /><span>{activeThread?.cwd ? shortPath(activeThread.cwd) : settings.cwd ? shortPath(settings.cwd) : "Default workspace"}</span></div>
                 <button className="attach-button" onClick={() => void attachImages()} disabled={!inDesktop || busy || creatingWorktree || attachments.length >= 5 || !modelSupportsImages} title={modelSupportsImages ? "Attach images" : "This model does not support images"} aria-label="Attach images"><Paperclip size={15} /></button>
-                <button className="attach-button" onClick={() => void attachAudio()} disabled={!inDesktop || busy || creatingWorktree || audioAttachments.length >= 3 || !modelSupportsAudio} title={modelSupportsAudio ? "Attach audio" : "This model does not support audio"} aria-label="Attach audio"><Music2 size={15} /></button>
-                <button className={`attach-button ${recording ? "recording" : ""}`} onClick={() => recording ? stopRecording() : void startRecording()} disabled={!inDesktop || busy || creatingWorktree || (!recording && (audioAttachments.length >= 3 || !modelSupportsAudio))} title={recording ? "Stop recording" : "Record voice message"} aria-label={recording ? "Stop recording" : "Record voice message"}>{recording ? <MicOff size={15} /> : <Mic size={15} />}</button>
+                <button className="attach-button" onClick={() => void attachAudio()} disabled={!inDesktop || busy || creatingWorktree || audioAttachments.length >= 3} title="Attach audio (requires a compatible Codex CLI)" aria-label="Attach audio"><Music2 size={15} /></button>
+                <button className={`attach-button ${recording ? "recording" : ""}`} onClick={() => recording ? stopRecording() : void startRecording()} disabled={!inDesktop || busy || creatingWorktree || (!recording && audioAttachments.length >= 3)} title={recording ? "Stop recording" : "Record voice message"} aria-label={recording ? "Stop recording" : "Record voice message"}>{recording ? <MicOff size={15} /> : <Mic size={15} />}</button>
                 <ModelPicker label="Model" compact value={settings.model} options={modelChoices} onChange={(model) => setSettings((current) => ({ ...current, model, effort: "" }))} />
                 {effortOptions.length > 0 && <ModelPicker label="Reasoning effort" compact value={settings.effort} options={effortChoices} onChange={(effort) => setSettings((current) => ({ ...current, effort }))} />}
               </div>
-              <div className="composer-actions">{busy ? <button className="send-button stop-button" onClick={() => void stopTurn()} title="Stop turn" disabled={!turnRef.current}><Square size={15} fill="currentColor" /></button> : <button className="send-button" onClick={() => void sendMessage()} disabled={(!draft.trim() && attachments.length === 0 && audioAttachments.length === 0) || (attachments.length > 0 && !modelSupportsImages) || (audioAttachments.length > 0 && !modelSupportsAudio) || recording || creatingWorktree || connection === "connecting" || connection === "disconnected"} title="Send message"><ArrowUp size={19} /></button>}</div>
+              <div className="composer-actions">{busy ? <button className="send-button stop-button" onClick={() => void stopTurn()} title="Stop turn" disabled={!turnRef.current}><Square size={15} fill="currentColor" /></button> : <button className="send-button" onClick={() => void sendMessage()} disabled={(!draft.trim() && attachments.length === 0 && audioAttachments.length === 0) || (attachments.length > 0 && !modelSupportsImages) || recording || creatingWorktree || connection === "connecting" || connection === "disconnected"} title="Send message"><ArrowUp size={19} /></button>}</div>
             </div>
           </div>
           {!selectedId && settings.cwd && <div className="worktree-create"><button onClick={() => void makeWorktree()} disabled={!inDesktop || creatingWorktree || busy}><GitBranch size={14} />{creatingWorktree ? "Creating worktree…" : "Create worktree from HEAD"}</button><span>Starts a separate checkout. Local uncommitted changes stay in the current checkout.</span></div>}

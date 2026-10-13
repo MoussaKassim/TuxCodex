@@ -3,12 +3,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { inDesktop, previewFile } from "./api";
-
-function localPath(value: string): string | null {
-  if (/^[a-z][a-z\d+.-]*:/i.test(value) && !value.startsWith("file://")) return null;
-  const path = value.startsWith("file://") ? decodeURIComponent(value.slice(7)) : value;
-  return /\.(?:png|jpe?g|webp|svg|pdf|html?|txt|md|json|csv|log)$/i.test(path) ? path : null;
-}
+import GeneratedImages from "./GeneratedImages";
+import { localPath, referencedImagePaths } from "./workspaceFiles";
 
 function InlineImage({ src, alt, cwd, onOpenFile }: { src: string; alt?: string; cwd: string; onOpenFile?: (path: string) => void }) {
   const [data, setData] = useState<string | null>(null);
@@ -53,5 +49,5 @@ export default function MarkdownMessage({ text, cwd = "", onOpenFile }: { text: 
       return path ? <button type="button" className="file-link inline-code" onClick={() => onOpenFile?.(path)}>{children}</button> : <code className={className}>{children}</code>;
     },
     p({ children }) { return <p>{Array.isArray(children) ? children.map((child, index) => typeof child === "string" ? <span key={index}>{linkText(child, onOpenFile)}</span> : child) : typeof children === "string" ? linkText(children, onOpenFile) : children}</p>; },
-  }}>{text}</ReactMarkdown></div>;
+  }}>{text}</ReactMarkdown><GeneratedImages paths={referencedImagePaths(text)} cwd={cwd} onOpenFile={(path) => onOpenFile?.(path)} /></div>;
 }

@@ -14,12 +14,20 @@ describe("TuxCodex preview workflows", () => {
     expect(screen.getByRole("button", { name: "Create project" })).toBeDisabled();
   });
   it("saves custom appearance and wallpaper choices", async () => {
-    render(<App />);
+    const app = render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Appearance" }));
     fireEvent.click(screen.getByRole("button", { name: "Custom theme" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mountains" }));
+    expect(screen.getByRole("button", { name: "SummitMountains" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "ForestNature" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "SummitMountains" }));
     await waitFor(() => expect(JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}")).toMatchObject({ theme: "custom", wallpaper: "mountains" }));
     expect(document.documentElement.dataset.theme).toBe("custom");
+    app.unmount();
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Appearance" }));
+    expect(screen.getByRole("button", { name: "Custom theme" })).toHaveClass("selected");
+    expect(screen.getByRole("button", { name: "SummitMountains" })).toHaveClass("selected");
   });
   it("requires an explicit confirmation to enable Full Access", async () => {
     render(<App />);

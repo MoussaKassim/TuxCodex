@@ -41,10 +41,11 @@ TuxCodex uses your existing Codex sign-in and configuration. The CLI is a separa
 - **Use separate worktrees:** start a chat in a new Git worktree based on the current `HEAD`. Uncommitted and ignored files stay in the original checkout.
 - **Control approvals:** accept or decline requests to run commands or change files. Full Access requires explicit confirmation.
 - **Choose a model and reasoning effort:** use the options reported by your installed Codex CLI.
-- **Attach and preview files:** send supported images or audio, record voice input, and preview workspace files including images, PDFs, HTML, and text.
+- **Attach and preview files:** send supported images or audio, record voice input, and preview workspace files including images, PDFs, HTML, and text. Generated images and image paths in replies appear inline and open in the larger viewer.
 - **Make it yours:** switch themes and customize the wallpaper.
 
 Feature availability can depend on the installed Codex CLI, selected model, and operating system.
+Audio input requires a compatible Codex app-server: CLI 0.143.0 rejects `localAudio`, while 0.162.1 accepts the input shape. If the server rejects an audio turn, TuxCodex restores the draft and attachments. Actual audio processing still needs an authenticated desktop test.
 
 ## Build from source
 
@@ -80,16 +81,21 @@ React + TypeScript interface
 ```
 
 TuxCodex starts `codex app-server` in the background and displays its responses and approval requests. Codex manages authentication and chat history. The [official App Server documentation](https://learn.chatgpt.com/docs/app-server) describes the protocol.
+App-server versions differ in how they spell permission values. TuxCodex retries with the older enum spelling only when the server rejects the newer one.
 
 ## Development
 
 ```bash
 npm test
+npm run test:coverage
+npm run test:app-server
 npm run build
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-GitHub Actions runs tests and builds installers for Linux, Windows, and macOS. Interactive testing on each platform is still valuable; the maintainer has confirmed the Linux experience. Contributions and bug reports are welcome through [Issues](https://github.com/MoussaKassim/TuxCodex/issues).
+`test:app-server` needs an installed `codex` CLI on `PATH`; use `TUXCODEX_TEST_CODEX_BIN` to select another executable. The test uses a temporary Codex home and workspace without starting an inference turn.
+
+GitHub Actions runs frontend and Rust tests, checks the app-server protocol against an older and a current CLI, uploads JUnit reports and Ubuntu coverage, and builds installers for Linux, Windows, and macOS. Version tags publish installers only after the required jobs pass. Interactive testing on each platform is still valuable; the maintainer has confirmed the Linux experience. Contributions and bug reports are welcome through [Issues](https://github.com/MoussaKassim/TuxCodex/issues).
 
 ## License
 

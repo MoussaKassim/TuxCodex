@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ImagePlus, X } from "lucide-react";
 import type { Settings } from "./types";
 import { wallpapers } from "./wallpapers";
@@ -8,6 +9,8 @@ export default function AppearancePanel({ settings, onChange, onImport, onClose 
   onImport: () => void;
   onClose: () => void;
 }) {
+  const [category, setCategory] = useState("All");
+  const categories = ["All", ...new Set(wallpapers.map((wallpaper) => wallpaper.category))];
   return <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="appearance-modal" role="dialog" aria-modal="true" aria-label="Appearance">
       <div className="modal-header"><div><span className="eyebrow">PERSONALIZE</span><h2>Appearance</h2></div><button className="icon-button" onClick={onClose} aria-label="Close appearance"><X size={20} /></button></div>
@@ -21,9 +24,12 @@ export default function AppearancePanel({ settings, onChange, onImport, onClose 
           <label>Accent <input type="color" value={settings.accentColor || "#78e2be"} onChange={(event) => onChange({ accentColor: event.target.value })} /></label>
         </div>}
         <h3>Wallpaper</h3>
+        <div className="wallpaper-filters" role="group" aria-label="Wallpaper categories">
+          {categories.map((choice) => <button key={choice} type="button" aria-pressed={category === choice} className={category === choice ? "selected" : ""} onClick={() => setCategory(choice)}>{choice}</button>)}
+        </div>
         <div className="wallpaper-gallery">
           <button className={`wallpaper-card none ${!settings.wallpaper ? "selected" : ""}`} onClick={() => onChange({ wallpaper: "" })}><span className="wallpaper-thumb">None</span><strong>None</strong></button>
-          {wallpapers.map((wallpaper) => <button key={wallpaper.id} className={`wallpaper-card ${settings.wallpaper === wallpaper.id ? "selected" : ""}`} onClick={() => onChange({ wallpaper: wallpaper.id })}><span className="wallpaper-thumb" style={{ backgroundImage: `url("${wallpaper.image}")` }} /><strong>{wallpaper.name}</strong><small>{wallpaper.category}</small></button>)}
+          {wallpapers.filter((wallpaper) => category === "All" || wallpaper.category === category).map((wallpaper) => <button key={wallpaper.id} className={`wallpaper-card ${settings.wallpaper === wallpaper.id ? "selected" : ""}`} onClick={() => onChange({ wallpaper: wallpaper.id })}><span className="wallpaper-thumb" style={{ backgroundImage: `url("${wallpaper.image}")` }} /><strong>{wallpaper.name}</strong><small>{wallpaper.category}</small></button>)}
           <button className={`wallpaper-card ${settings.wallpaper && !wallpapers.some((entry) => entry.id === settings.wallpaper) ? "selected" : ""}`} onClick={onImport}><span className="wallpaper-thumb upload"><ImagePlus size={24} /></span><strong>Import image</strong><small>PNG, JPEG, WebP</small></button>
         </div>
         <div className="wallpaper-adjustments">

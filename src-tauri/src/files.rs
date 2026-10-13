@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PreviewFile {
     path: String,
@@ -51,13 +51,7 @@ fn detect_kind(path: &Path, bytes: &[u8]) -> Result<(&'static str, &'static str)
         "webp" if bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP" => {
             Ok(("image", "image/webp"))
         }
-        "svg"
-            if std::str::from_utf8(bytes).ok().is_some_and(|text| {
-                text.trim_start().starts_with("<svg") || text.trim_start().starts_with("<?xml")
-            }) =>
-        {
-            Ok(("image", "image/svg+xml"))
-        }
+        "svg" if is_svg(bytes) => Ok(("image", "image/svg+xml")),
         "pdf" if bytes.starts_with(b"%PDF-") => Ok(("pdf", "application/pdf")),
         "html" | "htm" if std::str::from_utf8(bytes).is_ok() => Ok(("html", "text/html")),
         "txt" | "md" | "json" | "csv" | "log" if std::str::from_utf8(bytes).is_ok() => {
@@ -65,6 +59,28 @@ fn detect_kind(path: &Path, bytes: &[u8]) -> Result<(&'static str, &'static str)
         }
         _ => Err("Preview supports PNG, JPEG, WebP, SVG, PDF, HTML, and text files.".into()),
     }
+}
+
+fn is_svg(bytes: &[u8]) -> bool {
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        return false;
+    };
+    let mut document = text.trim_start_matches('\u{feff}').trim_start();
+    if document.starts_with("<?xml") {
+        let Some(end) = document.find("?>") else {
+            return false;
+        };
+        document = document[end + 2..].trim_start();
+    }
+    while document.starts_with("<!--") {
+        let Some(end) = document.find("-->") else {
+            return false;
+        };
+        document = document[end + 3..].trim_start();
+    }
+    document.strip_prefix("<svg").is_some_and(|tail| {
+        tail.starts_with(char::is_whitespace) || tail.starts_with('>') || tail.starts_with('/')
+    })
 }
 
 fn preview(cwd: &str, requested: &str) -> Result<PreviewFile, String> {
@@ -146,19 +162,91 @@ pub fn copy_workspace_file(cwd: String, path: String, destination: String) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn rejects_paths_outside_workspace() {
-        let root =
-            std::env::temp_dir().join(format!("tuxcodex-preview-test-{}", std::process::id()));
-        std::fs::create_dir_all(&root).unwrap();
-        std::fs::write(root.join("note.txt"), "hello").unwrap();
-        assert!(resolve_file(root.to_str().unwrap(), "note.txt").is_ok());
-        assert!(resolve_file(root.to_str().unwrap(), "../elsewhere.txt").is_err());
-        std::fs::remove_dir_all(root).unwrap();
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(1);
+
+    struct Fixture(PathBuf);
+
+    impl Fixture {
+        fn new() -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "tuxcodex-file-test-{}-{}",
+                std::process::id(),
+                NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir(&path).unwrap();
+            Self(path)
+        }
     }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn resolves_workspace_files_and_rejects_real_files_outside() {
+        let fixture = Fixture::new();
+        let workspace = fixture.0.join("workspace");
+        std::fs::create_dir(&workspace).unwrap();
+        std::fs::write(workspace.join("note.txt"), "hello").unwrap();
+        std::fs::write(fixture.0.join("secret.txt"), "private").unwrap();
+        assert!(resolve_file(workspace.to_str().unwrap(), "note.txt").is_ok());
+        assert!(resolve_file(workspace.to_str().unwrap(), "../secret.txt").is_err());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(fixture.0.join("secret.txt"), workspace.join("linked.txt"))
+                .unwrap();
+            assert!(resolve_file(workspace.to_str().unwrap(), "linked.txt").is_err());
+        }
+    }
+
     #[test]
     fn preview_detects_content_not_only_extension() {
         assert!(detect_kind(Path::new("file.pdf"), b"not a PDF").is_err());
         assert!(detect_kind(Path::new("file.pdf"), b"%PDF-1.7").is_ok());
+        assert!(detect_kind(Path::new("file.svg"), b"<?xml version='1.0'?><script/>").is_err());
+        assert!(detect_kind(
+            Path::new("file.svg"),
+            b"<?xml version='1.0'?><!--art--><svg viewBox='0 0 1 1'/>"
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn previews_images_and_html_from_a_workspace() {
+        let fixture = Fixture::new();
+        std::fs::write(fixture.0.join("chart.png"), b"\x89PNG\r\n\x1a\ncontent").unwrap();
+        let image = preview(fixture.0.to_str().unwrap(), "chart.png").unwrap();
+        assert_eq!(image.kind, "image");
+        assert!(image
+            .data_url
+            .unwrap()
+            .starts_with("data:image/png;base64,"));
+
+        std::fs::write(fixture.0.join("index.html"), "<h1>Report</h1>").unwrap();
+        let html = preview(fixture.0.to_str().unwrap(), "index.html").unwrap();
+        assert_eq!(html.kind, "html");
+        assert_eq!(html.text.as_deref(), Some("<h1>Report</h1>"));
+    }
+
+    #[test]
+    fn refuses_oversized_previews_and_overwriting_copies() {
+        let fixture = Fixture::new();
+        let oversized = std::fs::File::create(fixture.0.join("large.pdf")).unwrap();
+        oversized.set_len(20 * 1024 * 1024 + 1).unwrap();
+        assert!(preview(fixture.0.to_str().unwrap(), "large.pdf")
+            .unwrap_err()
+            .contains("20 MB"));
+
+        std::fs::write(fixture.0.join("note.txt"), "hello").unwrap();
+        let destination = fixture.0.join("copy.txt");
+        let cwd = fixture.0.to_string_lossy().into_owned();
+        let target = destination.to_string_lossy().into_owned();
+        copy_workspace_file(cwd.clone(), "note.txt".into(), target.clone()).unwrap();
+        assert_eq!(std::fs::read_to_string(&destination).unwrap(), "hello");
+        assert!(copy_workspace_file(cwd, "note.txt".into(), target).is_err());
     }
 }
