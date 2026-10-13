@@ -63,7 +63,7 @@ const demoItems: ChatItem[] = [
 
 function readSettings(): Settings {
   try {
-    return { ...defaultSettings, ...JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}") };
+    return { ...defaultSettings, ...JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}"), permissionMode: "standard" };
   } catch {
     return defaultSettings;
   }
@@ -155,7 +155,8 @@ export default function App() {
   const speechRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
-    localStorage.setItem("tuxcodex-settings", JSON.stringify(settings));
+    // Full Access is an explicit authorization for this app session only.
+    localStorage.setItem("tuxcodex-settings", JSON.stringify({ ...settings, permissionMode: "standard" }));
     document.documentElement.dataset.theme = settings.theme;
     const root = document.documentElement;
     const color = (value: string | undefined, fallback: string) => value && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;

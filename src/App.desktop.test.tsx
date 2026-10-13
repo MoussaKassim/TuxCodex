@@ -111,6 +111,7 @@ describe("TuxCodex desktop workflows", () => {
     fireEvent.click(screen.getByRole("button", { name: "Full Access" }));
     expect(requests("thread/start")).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "Enable Full Access" }));
+    expect(JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}").permissionMode).toBe("standard");
     fireEvent.change(screen.getByRole("textbox", { name: "Message to Codex" }), { target: { value: "Inspect this repo" } });
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     await waitFor(() => expect(requests("turn/start")).toHaveLength(1));
@@ -118,6 +119,16 @@ describe("TuxCodex desktop workflows", () => {
     expect(requests("turn/start")[0]).toMatchObject({ approvalPolicy: "never", sandboxPolicy: { type: "dangerFullAccess" } });
     act(() => bridge.listeners.get("codex-status")?.({ payload: "Codex app-server disconnected." }));
     await waitFor(() => expect(JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}").permissionMode).toBe("standard"));
+  });
+
+  it("starts in Standard mode even if an older session saved Full Access", async () => {
+    localStorage.setItem("tuxcodex-settings", JSON.stringify({ ...JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}"), permissionMode: "full" }));
+    render(<App />);
+    await screen.findByText("Codex connected");
+    expect(screen.getByRole("button", { name: "Switch to Full Access" })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Message to Codex" }), { target: { value: "Inspect this repo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await waitFor(() => expect(requests("thread/start")[0]).toMatchObject({ approvalPolicy: "onRequest", sandbox: "workspaceWrite" }));
   });
 
   it("switches permission modes from the composer without bypassing confirmation", async () => {

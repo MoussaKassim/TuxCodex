@@ -36,6 +36,7 @@ describe("TuxCodex preview workflows", () => {
     expect(screen.getByRole("alertdialog", { name: "Enable Full Access" })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}").permissionMode).toBe("standard");
     fireEvent.click(screen.getByRole("button", { name: "Enable Full Access" }));
-    await waitFor(() => expect(JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}").permissionMode).toBe("full"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Switch to Standard permissions" })).toBeInTheDocument());
+    expect(JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}").permissionMode).toBe("standard");
   });
 });

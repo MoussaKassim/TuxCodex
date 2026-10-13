@@ -81,6 +81,7 @@ jobs:
             test-results/linux-chat-smoke.json
             test-results/linux-generated-file-smoke.json
             test-results/linux-generated-file-smoke-generated-preview.png
+            test-results/linux-generated-file-smoke-diagnostic.png
           if-no-files-found: warn
       - run: |
           for package in src-tauri/target/release/bundle/deb/*.deb; do
@@ -132,6 +133,7 @@ jobs:
             test-results/linux-chat-smoke.json
             test-results/linux-generated-file-smoke.json
             test-results/linux-generated-file-smoke-generated-preview.png
+            test-results/linux-generated-file-smoke-diagnostic.png
           if-no-files-found: warn
       - run: |
           for package in src-tauri/target/release/bundle/deb/*.deb; do
@@ -179,6 +181,7 @@ jobs:
             test-results/linux-chat-smoke.json
             test-results/linux-generated-file-smoke.json
             test-results/linux-generated-file-smoke-generated-preview.png
+            test-results/linux-generated-file-smoke-diagnostic.png
             test-results/linux-chat-smoke-failure.png
           if-no-files-found: warn
       - uses: actions/upload-artifact@v4

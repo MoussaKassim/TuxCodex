@@ -49,7 +49,7 @@ These are workflows available through this client. Model selection, attachments,
 - **Follow Codex as it works:** see streamed replies, command output, file changes, and plan updates; interrupt a turn when needed.
 - **Review changes:** inspect Git changes in the review panel and ask Codex to review uncommitted work.
 - **Use separate worktrees:** start a chat in a new Git worktree based on the current `HEAD`. Uncommitted and ignored files stay in the original checkout.
-- **Control approvals:** accept or decline requests to run commands or change files. Switch permission modes beside the composer; Full Access requires explicit confirmation.
+- **Control approvals:** accept or decline requests to run commands or change files. Switch permission modes beside the composer; Full Access requires explicit confirmation and returns to Standard when the app restarts.
 - **Choose a model and reasoning effort:** use the options reported by your installed Codex CLI.
 - **Attach and preview files:** send supported images or audio, record voice input, and preview workspace files including images, PDFs, HTML, and text. Generated images and image paths in replies appear inline and open in the larger viewer.
 - **Make it yours:** switch themes and customize the wallpaper.
