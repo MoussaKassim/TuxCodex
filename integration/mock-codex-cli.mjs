@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // A small app-server fixture for exercising the packaged desktop through Tauri.
-import { appendFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 
 let thread = null;
@@ -27,7 +27,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
   if (method === "configRequirements/read") return write({ id, result: { requirements: null } });
   if (method === "thread/list") return write({ id, result: { data: thread ? [thread] : [] } });
   if (method === "thread/start") {
-    thread = { id: "smoke-thread", cwd: params.cwd || process.cwd(), name: "System smoke", preview: "System smoke", updatedAt: Date.now() / 1000 };
+    thread = { id: "smoke-thread", cwd: params.cwd || process.env.TUXCODEX_E2E_WORKSPACE || process.cwd(), name: "System smoke", preview: "System smoke", updatedAt: Date.now() / 1000 };
     return write({ id, result: { thread } });
   }
   if (method === "thread/resume") return write({ id, result: { thread } });
@@ -40,6 +40,10 @@ createInterface({ input: process.stdin }).on("line", (line) => {
       return;
     }
     setTimeout(() => {
+      if (process.env.TUXCODEX_SMOKE_GENERATED_FILE === "1" && params.approvalPolicy === "never") {
+        writeFileSync(`${thread.cwd}/smoke-output.svg`, '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="100" viewBox="0 0 160 100"><rect width="160" height="100" fill="#ff00ff"/></svg>');
+        write({ method: "item/completed", params: { threadId: "smoke-thread", item: { id: "smoke-generated-file", type: "fileChange", status: "completed", changes: [{ path: "smoke-output.svg" }] } } });
+      }
       write({ method: "item/agentMessage/delta", params: { threadId: "smoke-thread", itemId: "smoke-reply", delta: "System smoke reply ready." } });
       write({ method: "turn/completed", params: { threadId: "smoke-thread", turn: { id: turnId, status: "completed" } } });
     }, 100);

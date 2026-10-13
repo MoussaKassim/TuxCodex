@@ -55,7 +55,7 @@ jobs:
       - name: Install Tauri prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth xdotool dbus-x11 openbox x11-utils
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth xdotool dbus-x11 openbox x11-utils scrot python3-pil
       - run: npm ci
       - run: npm run test:coverage
       - uses: actions/upload-artifact@v4
@@ -70,7 +70,7 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles deb
       - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex" test-results/linux-smoke.json
-      - run: TUXCODEX_SMOKE_SELECT_MODEL=1 TUXCODEX_SMOKE_APPROVAL=1 TUXCODEX_SMOKE_FULL_ACCESS=1 bash scripts/smoke-linux-chat.sh "$PWD/src-tauri/target/release/tuxcodex" "$PWD/integration/mock-codex-cli.mjs" test-results/linux-chat-smoke.json
+      - run: TUXCODEX_SMOKE_SELECT_MODEL=1 TUXCODEX_SMOKE_APPROVAL=1 TUXCODEX_SMOKE_FULL_ACCESS=1 TUXCODEX_SMOKE_GENERATED_FILE=1 bash scripts/smoke-linux-chat.sh "$PWD/src-tauri/target/release/tuxcodex" "$PWD/integration/mock-codex-cli.mjs" test-results/linux-chat-smoke.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -78,6 +78,7 @@ jobs:
           path: |
             test-results/linux-smoke.json
             test-results/linux-chat-smoke.json
+            test-results/linux-chat-smoke-generated-preview.png
           if-no-files-found: warn
       - run: |
           for package in src-tauri/target/release/bundle/deb/*.deb; do
@@ -105,7 +106,7 @@ jobs:
       - name: Install Tauri and window test prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth xdotool dbus-x11 openbox x11-utils
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth xdotool dbus-x11 openbox x11-utils scrot python3-pil
       - run: npm ci
       - run: npm test
       - uses: actions/upload-artifact@v4
@@ -118,7 +119,7 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles deb
       - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex" test-results/linux-smoke.json
-      - run: TUXCODEX_SMOKE_SELECT_MODEL=1 TUXCODEX_SMOKE_APPROVAL=1 TUXCODEX_SMOKE_FULL_ACCESS=1 bash scripts/smoke-linux-chat.sh "$PWD/src-tauri/target/release/tuxcodex" "$PWD/integration/mock-codex-cli.mjs" test-results/linux-chat-smoke.json
+      - run: TUXCODEX_SMOKE_SELECT_MODEL=1 TUXCODEX_SMOKE_APPROVAL=1 TUXCODEX_SMOKE_FULL_ACCESS=1 TUXCODEX_SMOKE_GENERATED_FILE=1 bash scripts/smoke-linux-chat.sh "$PWD/src-tauri/target/release/tuxcodex" "$PWD/integration/mock-codex-cli.mjs" test-results/linux-chat-smoke.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -126,6 +127,7 @@ jobs:
           path: |
             test-results/linux-smoke.json
             test-results/linux-chat-smoke.json
+            test-results/linux-chat-smoke-generated-preview.png
           if-no-files-found: warn
       - run: |
           for package in src-tauri/target/release/bundle/deb/*.deb; do
@@ -144,7 +146,7 @@ jobs:
     steps:
       - name: Install Fedora build tools
         run: |
-          dnf install -y git tar gzip unzip findutils curl wget file nodejs npm gcc gcc-c++ make pkgconf-pkg-config openssl-devel webkit2gtk4.1-devel libappindicator-gtk3-devel librsvg2-devel libxdo-devel rpm-build patchelf xorg-x11-server-Xvfb xorg-x11-xauth xdotool openbox dbus-daemon xwininfo scrot
+          dnf install -y git tar gzip unzip findutils curl wget file nodejs npm gcc gcc-c++ make pkgconf-pkg-config openssl-devel webkit2gtk4.1-devel libappindicator-gtk3-devel librsvg2-devel libxdo-devel rpm-build patchelf xorg-x11-server-Xvfb xorg-x11-xauth xdotool openbox dbus-daemon xwininfo scrot python3-pillow
       - uses: actions/checkout@v4
       - name: Install Rust
         run: |
@@ -162,7 +164,7 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles rpm
       - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex" test-results/linux-smoke.json
-      - run: TUXCODEX_SMOKE_SELECT_MODEL=1 TUXCODEX_SMOKE_APPROVAL=1 TUXCODEX_SMOKE_FULL_ACCESS=1 bash scripts/smoke-linux-chat.sh "$PWD/src-tauri/target/release/tuxcodex" "$PWD/integration/mock-codex-cli.mjs" test-results/linux-chat-smoke.json
+      - run: TUXCODEX_SMOKE_SELECT_MODEL=1 TUXCODEX_SMOKE_APPROVAL=1 TUXCODEX_SMOKE_FULL_ACCESS=1 TUXCODEX_SMOKE_GENERATED_FILE=1 bash scripts/smoke-linux-chat.sh "$PWD/src-tauri/target/release/tuxcodex" "$PWD/integration/mock-codex-cli.mjs" test-results/linux-chat-smoke.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -170,6 +172,7 @@ jobs:
           path: |
             test-results/linux-smoke.json
             test-results/linux-chat-smoke.json
+            test-results/linux-chat-smoke-generated-preview.png
             test-results/linux-chat-smoke-failure.png
           if-no-files-found: warn
       - uses: actions/upload-artifact@v4

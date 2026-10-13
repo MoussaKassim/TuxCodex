@@ -84,6 +84,37 @@ if [[ ${1:-} == --session ]]; then
     xdotool key Return
   fi
 
+  if [[ ${TUXCODEX_SMOKE_GENERATED_FILE:-} == 1 ]]; then
+    screenshot="${report%.json}-generated-preview.png"
+    thumbnail=''
+    for attempt in {1..30}; do
+      scrot "$screenshot"
+      thumbnail=$(python3 scripts/check-generated-preview.py thumbnail "$screenshot" || true)
+      if [[ -n $thumbnail ]]; then break; fi
+      sleep 1
+    done
+    if [[ -z $thumbnail ]]; then
+      cat "$app_log" "$protocol_log"
+      echo 'Generated image thumbnail did not appear in the packaged app.' >&2
+      exit 1
+    fi
+    read -r image_x image_y thumbnail_pixels <<<"$thumbnail"
+    xdotool mousemove "$image_x" "$image_y" click 1
+    viewer_pixels=''
+    for attempt in {1..15}; do
+      sleep .5
+      scrot "$screenshot"
+      viewer_pixels=$(python3 scripts/check-generated-preview.py viewer "$screenshot" || true)
+      if [[ -n $viewer_pixels ]]; then break; fi
+    done
+    if [[ -z $viewer_pixels ]]; then
+      cat "$app_log" "$protocol_log"
+      echo 'Generated image did not open in the larger built-in viewer.' >&2
+      exit 1
+    fi
+    echo "Generated image rendered inline ($thumbnail_pixels pixels) and opened in the viewer ($viewer_pixels pixels)."
+  fi
+
   for attempt in {1..30}; do
     if node --input-type=commonjs - "$protocol_log" "$prompt" <<'NODE'
 const fs = require("node:fs");
@@ -113,7 +144,7 @@ if (process.env.TUXCODEX_SMOKE_FULL_ACCESS === "1") {
 }
 NODE
     then
-      printf '{"windowVisible":true,"threadCreated":true,"chatSent":true,"standardPermissions":true,"modelSelected":%s,"approvalDeclined":%s,"fullAccessConfirmed":%s}\n' "$( [[ ${TUXCODEX_SMOKE_SELECT_MODEL:-} == 1 ]] && echo true || echo false )" "$( [[ ${TUXCODEX_SMOKE_APPROVAL:-} == 1 ]] && echo true || echo false )" "$( [[ ${TUXCODEX_SMOKE_FULL_ACCESS:-} == 1 ]] && echo true || echo false )" >"$report"
+      printf '{"windowVisible":true,"threadCreated":true,"chatSent":true,"standardPermissions":true,"modelSelected":%s,"approvalDeclined":%s,"fullAccessConfirmed":%s,"generatedFilePreviewed":%s}\n' "$( [[ ${TUXCODEX_SMOKE_SELECT_MODEL:-} == 1 ]] && echo true || echo false )" "$( [[ ${TUXCODEX_SMOKE_APPROVAL:-} == 1 ]] && echo true || echo false )" "$( [[ ${TUXCODEX_SMOKE_FULL_ACCESS:-} == 1 ]] && echo true || echo false )" "$( [[ ${TUXCODEX_SMOKE_GENERATED_FILE:-} == 1 ]] && echo true || echo false )" >"$report"
       echo 'TuxCodex sent Standard and confirmed Full Access chats through the Rust bridge.'
       exit 0
     fi
@@ -137,9 +168,11 @@ mkdir -p "$(dirname "$report")"
 report=$(realpath -m "$report")
 protocol_log=$(mktemp)
 app_log=$(mktemp)
-trap 'rm -f "$protocol_log" "$app_log"' EXIT
+workspace=$(mktemp -d)
+trap 'rm -f "$protocol_log" "$app_log" "$workspace/smoke-output.svg"; rmdir "$workspace" 2>/dev/null || true' EXIT
 export TUXCODEX_CODEX_BIN=$mock_bin
 export TUXCODEX_E2E_LOG=$protocol_log
 export TUXCODEX_E2E_REPORT=$report
 export TUXCODEX_E2E_APP_LOG=$app_log
+export TUXCODEX_E2E_WORKSPACE=$workspace
 xvfb-run -a dbus-run-session -- bash "$0" --session "$app_bin"
