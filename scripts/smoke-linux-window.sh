@@ -5,15 +5,18 @@ app_bin=${1:?Pass the TuxCodex executable path}
 smoke_log=$(mktemp)
 trap 'rm -f "$smoke_log"' EXIT
 
-xvfb-run -a bash -c '
+xvfb-run -a dbus-run-session -- bash -c '
   set -euo pipefail
   app_bin=$1
   smoke_log=$2
-  GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 "$app_bin" >"$smoke_log" 2>&1 &
+  openbox >/dev/null 2>&1 &
+  wm_pid=$!
+  sleep 1
+  GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 NO_AT_BRIDGE=1 "$app_bin" >"$smoke_log" 2>&1 &
   app_pid=$!
-  trap '\''kill "$app_pid" 2>/dev/null || true; wait "$app_pid" 2>/dev/null || true'\'' EXIT
+  trap '\''kill "$app_pid" "$wm_pid" 2>/dev/null || true; wait "$app_pid" "$wm_pid" 2>/dev/null || true'\'' EXIT
 
-  for attempt in {1..20}; do
+  for attempt in {1..30}; do
     if xdotool search --onlyvisible --name TuxCodex >/dev/null 2>&1; then
       echo "TuxCodex opened a visible window."
       exit 0
@@ -27,6 +30,8 @@ xvfb-run -a bash -c '
   done
 
   cat "$smoke_log"
-  echo "TuxCodex did not open a window within 20 seconds." >&2
+  echo "X11 windows:" >&2
+  xwininfo -root -tree >&2 || true
+  echo "TuxCodex did not open a window within 30 seconds." >&2
   exit 1
 ' _ "$app_bin" "$smoke_log"

@@ -55,7 +55,7 @@ jobs:
       - name: Install Tauri prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth xdotool
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth xdotool dbus-x11 openbox x11-utils
       - run: npm ci
       - run: npm run test:coverage
       - uses: actions/upload-artifact@v4
@@ -96,7 +96,7 @@ jobs:
       - name: Install Tauri and window test prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth xdotool
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth xdotool dbus-x11 openbox x11-utils
       - run: npm ci
       - run: npm test
       - uses: actions/upload-artifact@v4
