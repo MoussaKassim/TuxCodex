@@ -88,7 +88,7 @@ jobs:
           - runner: macos-15
             target: aarch64-apple-darwin
             label: arm64
-          - runner: macos-15-intel
+          - runner: macos-15
             target: x86_64-apple-darwin
             label: x64
     runs-on: ${{ matrix.runner }}
