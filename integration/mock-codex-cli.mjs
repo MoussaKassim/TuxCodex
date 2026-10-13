@@ -40,8 +40,9 @@ createInterface({ input: process.stdin }).on("line", (line) => {
       return;
     }
     setTimeout(() => {
-      if (process.env.TUXCODEX_SMOKE_GENERATED_FILE === "1" && params.approvalPolicy === "never") {
+      if (process.env.TUXCODEX_SMOKE_GENERATED_FILE === "1") {
         writeFileSync(`${thread.cwd}/smoke-output.svg`, '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="100" viewBox="0 0 160 100"><rect width="160" height="100" fill="#ff00ff"/></svg>');
+        record("fixture/generatedFile", { path: `${thread.cwd}/smoke-output.svg` });
         write({ method: "item/completed", params: { threadId: "smoke-thread", item: { id: "smoke-generated-file", type: "fileChange", status: "completed", changes: [{ path: "smoke-output.svg" }] } } });
       }
       write({ method: "item/agentMessage/delta", params: { threadId: "smoke-thread", itemId: "smoke-reply", delta: "System smoke reply ready." } });
