@@ -131,8 +131,7 @@ async fn git_text(cwd: &Path, args: &[&str]) -> Result<String, String> {
 }
 
 async fn repository_root(cwd: &Path) -> Result<PathBuf, String> {
-    let path = cwd
-        .canonicalize()
+    let path = dunce::canonicalize(cwd)
         .map_err(|error| format!("Workspace folder is unavailable: {error}"))?;
     if !path.is_dir() {
         return Err("Choose a workspace folder inside a Git repository.".into());
@@ -140,8 +139,7 @@ async fn repository_root(cwd: &Path) -> Result<PathBuf, String> {
     let root = git_text(&path, &["rev-parse", "--show-toplevel"])
         .await
         .map_err(|_| "Choose a workspace folder inside a Git repository.".to_string())?;
-    PathBuf::from(root)
-        .canonicalize()
+    dunce::canonicalize(PathBuf::from(root))
         .map_err(|error| format!("Could not resolve repository root: {error}"))
 }
 
