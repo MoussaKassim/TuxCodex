@@ -10,17 +10,16 @@ TuxCodex puts project switching, Codex chats, streamed work, approvals, code rev
 
 ## Download
 
-Get the latest installers from [GitHub Releases](https://github.com/MoussaKassim/TuxCodex/releases). Version 0.1.0 is a preview release.
+Get the latest preview installers from [GitHub Releases](https://github.com/MoussaKassim/TuxCodex/releases).
 
 | Platform | Download |
 | --- | --- |
-| Ubuntu / Debian (x86-64) | `.deb` |
+| Ubuntu 22.04 / 24.04 (x86-64) | Separate `.deb` packages |
 | Fedora (x86-64) | `.rpm` |
 | Windows (x64) | `-setup.exe` |
 | macOS (Apple silicon / Intel) | `.dmg` |
 
 The installers are not code signed or notarized yet, so Windows or macOS may display a warning. Each release includes `SHA256SUMS.txt` for checking downloads.
-The next tagged release is planned to include separate Ubuntu 22.04 and 24.04 packages. Version 0.1.0 predates that split.
 
 ## Get started
 
