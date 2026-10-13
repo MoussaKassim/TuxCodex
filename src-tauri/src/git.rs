@@ -10,6 +10,10 @@ use tokio::time::{timeout, Duration};
 
 const MAX_DIFF_BYTES: usize = 1_500_000;
 const MAX_UNTRACKED_FILE_BYTES: u64 = 128_000;
+#[cfg(windows)]
+const NULL_DEVICE: &str = "NUL";
+#[cfg(not(windows))]
+const NULL_DEVICE: &str = "/dev/null";
 static NEXT_WORKTREE: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Serialize)]
@@ -238,7 +242,7 @@ async fn snapshot_for(cwd: &Path) -> Result<GitSnapshot, String> {
                 "--no-ext-diff",
                 "--no-color",
                 "--",
-                "/dev/null",
+                NULL_DEVICE,
             ],
             Some(&path),
             MAX_DIFF_BYTES - diff.len(),

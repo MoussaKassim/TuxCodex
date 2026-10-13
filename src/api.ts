@@ -45,7 +45,7 @@ export function threadItems(raw: unknown): ChatItem[] {
           .map((part) => {
             const input = part as { type?: string; text?: string; path?: string };
             if (input.type === "text") return input.text || "";
-            if (input.type === "localImage") return `[Image: ${input.path?.split("/").at(-1) || "attachment"}]`;
+            if (input.type === "localImage") return `[Image: ${input.path?.split(/[\\/]/).at(-1) || "attachment"}]`;
             if (input.type === "image") return "[Image attachment]";
             return "";
           })

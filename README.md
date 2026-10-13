@@ -1,6 +1,6 @@
 # TuxCodex
 
-An unofficial desktop client for OpenAI Codex on Linux. TuxCodex uses a Tauri 2 interface and talks to the official `codex app-server` process through newline-delimited JSON-RPC over standard input and output.
+An unofficial desktop client for OpenAI Codex on Linux, Windows, and macOS. TuxCodex uses a Tauri 2 interface and talks to the official `codex app-server` process through newline-delimited JSON-RPC over standard input and output.
 
 The repository also contains Moussa's earlier Python/GTK 3 prototype as [`codex-desktop-linux.tar`](codex-desktop-linux.tar). The Tauri app is the active implementation; the archive remains available as a reference for the original feature set and tests. Its [original README is translated into English](docs/gtk-prototype-readme.en.md).
 
@@ -13,14 +13,27 @@ The repository also contains Moussa's earlier Python/GTK 3 prototype as [`codex-
 - **Approvals:** displays command and file-change approval requests. You can allow one request or decline it. Unanswered requests are declined after five minutes. Other server-initiated requests are rejected until the client supports them explicitly.
 - **Model and effort:** loads available models and their supported reasoning efforts from `model/list`; choose them in the composer or use the CLI defaults.
 - **Image input:** attach up to five local PNG, JPEG, or WebP images with a message. The selected paths are sent to the local app-server as `localImage` inputs; TuxCodex stores no image copies.
-- **Appearance and preview:** dark, light, and system themes. If the CLI cannot start, the desktop app opens a clearly marked offline preview with sample chats and a Retry action. The browser preview also uses sample data.
+- **Appearance and preview:** dark, light, and system themes. If the CLI cannot start, the desktop app shows a disconnected state and a Retry action. The browser-only preview uses sample data.
 
 TuxCodex uses the local Codex authentication and configuration. Sign in with the CLI before opening the desktop app. It does not collect or store an API key in its own settings.
 
+## Download and install
+
+Installers are published in [GitHub Releases](https://github.com/MoussaKassim/TuxCodex/releases). The first preview release provides:
+
+| System | Package | Architecture |
+| --- | --- | --- |
+| Ubuntu and Debian | `.deb` | x86-64 |
+| Fedora | `.rpm` | x86-64 |
+| Windows | NSIS `-setup.exe` | x64 |
+| macOS | `.dmg` | Apple silicon and Intel |
+
+The release also includes `SHA256SUMS.txt`. These preview installers are not code signed or notarized. Windows SmartScreen and macOS Gatekeeper may warn on download or first launch. The Codex CLI must be installed and signed in separately on each machine.
+
 ## Requirements
 
-- Linux desktop with WebKitGTK 4.1. Ubuntu 24.04 LTS is the primary target; other current Debian, Fedora, and Arch systems should work with their corresponding Tauri packages.
-- Node.js and npm for development, plus Rust and Cargo for building the desktop app.
+- Linux desktop with WebKitGTK 4.1, Windows with WebView2, or macOS. Ubuntu 24.04 and Fedora 43 are the Linux build bases.
+- Node.js and npm for development or for installing the Codex CLI, plus Rust and Cargo for building the desktop app.
 - The official Codex CLI, installed and authenticated on the same machine.
 
 On Ubuntu or Debian, install the [Tauri Linux prerequisites](https://v2.tauri.app/start/prerequisites/):
@@ -40,6 +53,8 @@ codex login
 
 If your desktop launcher cannot find `codex`, set its full path in TuxCodex Settings or use `TUXCODEX_CODEX_BIN`. The CLI remains a separate prerequisite and is not bundled with TuxCodex.
 
+On Windows, the app checks the usual `%APPDATA%\npm\codex.cmd` installation path. You can select another CLI path in Settings. On macOS, it checks the usual Homebrew and user installation paths.
+
 ## Worktrees and review
 
 Choose a Git repository in Settings, start a new chat, then select **Create worktree from HEAD** below the composer to work in a separate checkout. The original checkout remains in the project sidebar. The worktree starts from the current commit; uncommitted and ignored files stay in the original checkout.
@@ -55,13 +70,16 @@ npm ci
 npm run tauri dev
 ```
 
-For an installable Linux package:
+For a package on the current platform, use one of:
 
 ```bash
 npm run tauri build -- --bundles deb
+npm run tauri build -- --bundles rpm
+npm run tauri build -- --bundles nsis
+npm run tauri build -- --bundles dmg
 ```
 
-The build writes a `.deb` under `src-tauri/target/release/bundle/deb/`. Tauri can also build an AppImage with `npm run tauri build -- --bundles appimage`; that packaging route has not yet been validated here. Run `npm run dev` to view a browser-only interface preview with sample data. The browser preview cannot connect to Codex.
+Select the bundle that matches your operating system. Tauri writes it under `src-tauri/target/release/bundle/` (or a target-specific directory). Run `npm run dev` to view a browser-only interface preview with sample data. The browser preview cannot connect to Codex.
 
 ## How it works
 
@@ -92,7 +110,7 @@ npm run build
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-The Linux workflow in `.github/workflows/ci.yml` builds the frontend, tests the Rust bridge, and packages the desktop app. Running a real inference turn requires an authenticated Codex account; build and UI checks alone do not verify that service connection.
+The workflow in `.github/workflows/ci.yml` builds and tests Ubuntu, Fedora, Windows, and both macOS architectures. Version tags publish the installers and SHA-256 checksums to GitHub Releases. Running a real inference turn requires an authenticated Codex account; build and UI checks alone do not verify that service connection. The packages need interactive smoke tests on each target operating system.
 
 ## Earlier GTK prototype
 

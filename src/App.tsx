@@ -78,7 +78,7 @@ function displayName(thread: Thread): string {
 
 function shortPath(path: string): string {
   if (!path) return "No workspace selected";
-  const parts = path.replace(/\/$/, "").split("/");
+  const parts = path.replace(/[\\/]$/, "").split(/[\\/]/);
   return parts.at(-1) || path;
 }
 

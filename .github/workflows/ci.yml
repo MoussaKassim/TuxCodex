@@ -1,12 +1,16 @@
-name: Linux desktop build
+name: Desktop packages
 
 on:
   push:
     branches: [main]
-  pull_request:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  linux:
+  ubuntu:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -18,7 +22,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-      - name: Install Tauri Linux dependencies
+      - name: Install Tauri prerequisites
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
@@ -28,5 +32,107 @@ jobs:
       - run: npm run tauri build -- --bundles deb
       - uses: actions/upload-artifact@v4
         with:
-          name: tuxcodex-linux-deb
+          name: tuxcodex-ubuntu-amd64
           path: src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
+
+  fedora:
+    runs-on: ubuntu-24.04
+    container: fedora:43
+    steps:
+      - name: Install Fedora build tools
+        run: |
+          dnf install -y git tar gzip unzip findutils curl wget file nodejs npm gcc gcc-c++ make pkgconf-pkg-config openssl-devel webkit2gtk4.1-devel libappindicator-gtk3-devel librsvg2-devel libxdo-devel rpm-build patchelf
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - run: npm ci
+      - run: npm run build
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: npm run tauri build -- --bundles rpm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tuxcodex-fedora-x86_64
+          path: src-tauri/target/release/bundle/rpm/*.rpm
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - run: npm run build
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: npm run tauri build -- --bundles nsis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tuxcodex-windows-x64
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            label: arm64
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            label: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - run: npm run build
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: npm run tauri build -- --target ${{ matrix.target }} --bundles dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tuxcodex-macos-${{ matrix.label }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [ubuntu, fedora, windows, macos]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tuxcodex-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish installers to GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(find release-assets -maxdepth 1 -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.exe' -o -name '*.dmg' \) | wc -l)" -eq 5
+          cd release-assets
+          sha256sum *.deb *.rpm *.exe *.dmg > SHA256SUMS.txt
+          cd ..
+          gh release create "$GITHUB_REF_NAME" release-assets/* --repo "$GITHUB_REPOSITORY" --verify-tag --title "TuxCodex $GITHUB_REF_NAME" --prerelease --generate-notes

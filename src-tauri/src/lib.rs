@@ -108,7 +108,14 @@ fn codex_binary(custom_path: Option<String>) -> PathBuf {
             return PathBuf::from(path);
         }
     }
-    if let Some(home) = std::env::var_os("HOME") {
+    #[cfg(windows)]
+    if let Some(appdata) = std::env::var_os("APPDATA") {
+        let candidate = PathBuf::from(appdata).join("npm/codex.cmd");
+        if candidate.is_file() {
+            return candidate;
+        }
+    }
+    if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
         let home = PathBuf::from(home);
         for candidate in [home.join(".local/bin/codex"), home.join(".cargo/bin/codex")] {
             if candidate.is_file() {
