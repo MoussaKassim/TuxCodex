@@ -69,7 +69,13 @@ jobs:
       - run: npm run build
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles deb
-      - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex"
+      - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex" test-results/linux-smoke.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-ubuntu24-window
+          path: test-results/linux-smoke.json
+          if-no-files-found: warn
       - run: |
           for package in src-tauri/target/release/bundle/deb/*.deb; do
             test -f "$package"
@@ -108,7 +114,13 @@ jobs:
       - run: npm run build
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles deb
-      - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex"
+      - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex" test-results/linux-smoke.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-ubuntu22-window
+          path: test-results/linux-smoke.json
+          if-no-files-found: warn
       - run: |
           for package in src-tauri/target/release/bundle/deb/*.deb; do
             test -f "$package"
@@ -126,7 +138,7 @@ jobs:
     steps:
       - name: Install Fedora build tools
         run: |
-          dnf install -y git tar gzip unzip findutils curl wget file nodejs npm gcc gcc-c++ make pkgconf-pkg-config openssl-devel webkit2gtk4.1-devel libappindicator-gtk3-devel librsvg2-devel libxdo-devel rpm-build patchelf
+          dnf install -y git tar gzip unzip findutils curl wget file nodejs npm gcc gcc-c++ make pkgconf-pkg-config openssl-devel webkit2gtk4.1-devel libappindicator-gtk3-devel librsvg2-devel libxdo-devel rpm-build patchelf xorg-x11-server-Xvfb xorg-x11-xauth xdotool openbox dbus-daemon xwininfo
       - uses: actions/checkout@v4
       - name: Install Rust
         run: |
@@ -143,6 +155,13 @@ jobs:
       - run: npm run build
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles rpm
+      - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex" test-results/linux-smoke.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-fedora-window
+          path: test-results/linux-smoke.json
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         with:
           name: tuxcodex-fedora-x86_64

@@ -96,7 +96,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 `test:app-server` needs an installed `codex` CLI on `PATH`; use `TUXCODEX_TEST_CODEX_BIN` to select another executable. The test uses a temporary Codex home and workspace without starting an inference turn.
 
-GitHub Actions runs frontend and Rust tests, checks the app-server protocol against an older and a current CLI, uploads JUnit reports and Ubuntu coverage, and builds installers for Ubuntu 22.04, Ubuntu 24.04, Fedora, Windows, and macOS. The Ubuntu jobs also check that the packaged app opens a visible window under Xvfb. Version tags publish installers only after the required jobs pass. Interactive testing on each platform is still valuable; the maintainer has confirmed the Linux experience. Contributions and bug reports are welcome through [Issues](https://github.com/MoussaKassim/TuxCodex/issues).
+GitHub Actions runs frontend and Rust tests, checks the app-server protocol against an older and a current CLI, uploads JUnit reports and Ubuntu coverage, and builds installers for Ubuntu 22.04, Ubuntu 24.04, Fedora, Windows, and macOS. The Linux jobs check that the packaged app opens a visible window under Xvfb and upload startup time and launcher memory samples. Version tags publish installers only after the required jobs pass. Interactive testing on each platform is still valuable; the maintainer has confirmed the Linux experience. Contributions and bug reports are welcome through [Issues](https://github.com/MoussaKassim/TuxCodex/issues).
 
 ## License
 

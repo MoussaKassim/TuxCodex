@@ -2,23 +2,32 @@
 set -euo pipefail
 
 app_bin=${1:?Pass the TuxCodex executable path}
+smoke_report=${2:-}
 smoke_log=$(mktemp)
 trap 'rm -f "$smoke_log"' EXIT
+if [[ -n $smoke_report ]]; then mkdir -p "$(dirname "$smoke_report")"; fi
 
 xvfb-run -a dbus-run-session -- bash -c '
   set -euo pipefail
   app_bin=$1
   smoke_log=$2
+  smoke_report=$3
   openbox >/dev/null 2>&1 &
   wm_pid=$!
   sleep 1
+  started_ms=$(date +%s%3N)
   GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 NO_AT_BRIDGE=1 "$app_bin" >"$smoke_log" 2>&1 &
   app_pid=$!
   trap '\''kill "$app_pid" "$wm_pid" 2>/dev/null || true; wait "$app_pid" "$wm_pid" 2>/dev/null || true'\'' EXIT
 
   for attempt in {1..30}; do
     if xdotool search --onlyvisible --name TuxCodex >/dev/null 2>&1; then
-      echo "TuxCodex opened a visible window."
+      startup_ms=$(($(date +%s%3N) - started_ms))
+      rss_kb=$(awk '\''/^VmRSS:/ { print $2; exit }'\'' "/proc/$app_pid/status")
+      echo "TuxCodex opened a visible window in ${startup_ms} ms; launcher RSS ${rss_kb:-0} KiB."
+      if [[ -n $smoke_report ]]; then
+        printf '\''{"windowVisible":true,"startupMs":%s,"launcherRssKiB":%s}\n'\'' "$startup_ms" "${rss_kb:-0}" >"$smoke_report"
+      fi
       exit 0
     fi
     if ! kill -0 "$app_pid" 2>/dev/null; then
@@ -34,4 +43,4 @@ xvfb-run -a dbus-run-session -- bash -c '
   xwininfo -root -tree >&2 || true
   echo "TuxCodex did not open a window within 30 seconds." >&2
   exit 1
-' _ "$app_bin" "$smoke_log"
+' _ "$app_bin" "$smoke_log" "$smoke_report"
