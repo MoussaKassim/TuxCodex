@@ -75,6 +75,10 @@ NODE
   done
 
   cat "$app_log" "$protocol_log"
+  echo "Window geometry: ${WIDTH}x${HEIGHT}" >&2
+  if command -v scrot >/dev/null 2>&1; then
+    scrot "${report%.json}-failure.png" || true
+  fi
   echo 'TuxCodex did not send the typed prompt to the mock app-server.' >&2
   exit 1
 fi

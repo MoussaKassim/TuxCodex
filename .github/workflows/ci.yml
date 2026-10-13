@@ -144,7 +144,7 @@ jobs:
     steps:
       - name: Install Fedora build tools
         run: |
-          dnf install -y git tar gzip unzip findutils curl wget file nodejs npm gcc gcc-c++ make pkgconf-pkg-config openssl-devel webkit2gtk4.1-devel libappindicator-gtk3-devel librsvg2-devel libxdo-devel rpm-build patchelf xorg-x11-server-Xvfb xorg-x11-xauth xdotool openbox dbus-daemon xwininfo
+          dnf install -y git tar gzip unzip findutils curl wget file nodejs npm gcc gcc-c++ make pkgconf-pkg-config openssl-devel webkit2gtk4.1-devel libappindicator-gtk3-devel librsvg2-devel libxdo-devel rpm-build patchelf xorg-x11-server-Xvfb xorg-x11-xauth xdotool openbox dbus-daemon xwininfo scrot
       - uses: actions/checkout@v4
       - name: Install Rust
         run: |
@@ -170,6 +170,7 @@ jobs:
           path: |
             test-results/linux-smoke.json
             test-results/linux-chat-smoke.json
+            test-results/linux-chat-smoke-failure.png
           if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         with:
