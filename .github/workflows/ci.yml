@@ -70,11 +70,14 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles deb
       - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex" test-results/linux-smoke.json
+      - run: bash scripts/smoke-linux-chat.sh "$PWD/src-tauri/target/release/tuxcodex" "$PWD/integration/mock-codex-cli.mjs" test-results/linux-chat-smoke.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-report-ubuntu24-window
-          path: test-results/linux-smoke.json
+          path: |
+            test-results/linux-smoke.json
+            test-results/linux-chat-smoke.json
           if-no-files-found: warn
       - run: |
           for package in src-tauri/target/release/bundle/deb/*.deb; do
