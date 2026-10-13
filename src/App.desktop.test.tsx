@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 import type { ServerMessage } from "./types";
 
 const bridge = vi.hoisted(() => ({
@@ -49,6 +50,21 @@ beforeEach(() => {
 });
 
 describe("TuxCodex desktop workflows", () => {
+  it("reaches model and reasoning controls from the composer by keyboard", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText("Codex connected");
+    await user.click(screen.getByRole("textbox", { name: "Message to Codex" }));
+    for (let index = 0; index < 4; index++) await user.tab();
+    expect(screen.getByRole("button", { name: "Model" })).toHaveFocus();
+    await user.keyboard("{Enter}{ArrowDown}{Enter}");
+    expect(screen.getByRole("button", { name: "Model" })).toHaveTextContent("Test model");
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Reasoning effort" })).toHaveFocus();
+    await user.keyboard("{Enter}{ArrowDown}{Enter}");
+    expect(screen.getByRole("button", { name: "Reasoning effort" })).toHaveTextContent("high");
+  });
+
   it("sends selected model and effort, streams a reply, and opens a generated image", async () => {
     localStorage.setItem("tuxcodex-settings", JSON.stringify({ cwd: "/workspace/project", theme: "system", permissionMode: "standard" }));
     bridge.invoke.mockImplementation(async (command: string, args?: { method?: string; path?: string }) => {

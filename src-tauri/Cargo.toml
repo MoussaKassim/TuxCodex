@@ -1,6 +1,6 @@
 [package]
 name = "tuxcodex"
-version = "0.1.1"
+version = "0.1.2"
 description = "Unofficial cross-platform Codex desktop client"
 authors = ["Moussa Kassim Mohame", "Stefano Cacciatore"]
 edition = "2021"
