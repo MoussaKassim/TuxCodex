@@ -61,6 +61,28 @@ if [[ ${1:-} == --session ]]; then
     sleep .5
     xdotool key --clearmodifiers Return
   fi
+  if [[ ${TUXCODEX_SMOKE_FULL_ACCESS:-} == 1 ]]; then
+    if [[ ${TUXCODEX_SMOKE_APPROVAL:-} != 1 ]]; then
+      echo 'Full Access smoke requires the Standard approval smoke first.' >&2
+      exit 1
+    fi
+    for attempt in {1..40}; do
+      if grep -Fq '"method":"approval/response"' "$protocol_log"; then break; fi
+      sleep .25
+    done
+    sleep .5
+    xdotool mousemove --window "$window_id" "$((WIDTH * 60 / 100))" "$((HEIGHT - 115))" click 1
+    # Three attachment buttons, model, effort, then the permissions control.
+    # Send is disabled while the composer is empty, so it is skipped by Tab.
+    xdotool key --clearmodifiers Tab Tab Tab Tab Tab Tab Return
+    sleep .3
+    # The confirmation dialog focuses Cancel. Move to Enable Full Access.
+    xdotool key --clearmodifiers Tab Return
+    sleep .3
+    xdotool mousemove --window "$window_id" "$((WIDTH * 60 / 100))" "$((HEIGHT - 115))" click 1
+    xdotool type --clearmodifiers --delay 8 'TuxCodex full access smoke prompt'
+    xdotool key Return
+  fi
 
   for attempt in {1..30}; do
     if node --input-type=commonjs - "$protocol_log" "$prompt" <<'NODE'
@@ -82,10 +104,17 @@ if (process.env.TUXCODEX_SMOKE_APPROVAL === "1") {
   const approval = requests.find((entry) => entry.method === "approval/response");
   if (approval?.params?.decision !== "decline") process.exit(1);
 }
+if (process.env.TUXCODEX_SMOKE_FULL_ACCESS === "1") {
+  const resume = requests.find((entry) => entry.method === "thread/resume");
+  const fullTurn = requests.filter((entry) => entry.method === "turn/start")[1];
+  if (resume?.params?.threadId !== "smoke-thread" || resume.params.approvalPolicy !== "never" || resume.params.sandbox !== "dangerFullAccess") process.exit(1);
+  if (fullTurn?.params?.approvalPolicy !== "never" || fullTurn.params.sandboxPolicy?.type !== "dangerFullAccess") process.exit(1);
+  if (!fullTurn.params.input?.some((item) => item.type === "text" && item.text === "TuxCodex full access smoke prompt")) process.exit(1);
+}
 NODE
     then
-      printf '{"windowVisible":true,"threadCreated":true,"chatSent":true,"standardPermissions":true,"modelSelected":%s,"approvalDeclined":%s}\n' "$( [[ ${TUXCODEX_SMOKE_SELECT_MODEL:-} == 1 ]] && echo true || echo false )" "$( [[ ${TUXCODEX_SMOKE_APPROVAL:-} == 1 ]] && echo true || echo false )" >"$report"
-      echo 'TuxCodex sent a Standard-permission chat and explicit approval decision through the Rust bridge.'
+      printf '{"windowVisible":true,"threadCreated":true,"chatSent":true,"standardPermissions":true,"modelSelected":%s,"approvalDeclined":%s,"fullAccessConfirmed":%s}\n' "$( [[ ${TUXCODEX_SMOKE_SELECT_MODEL:-} == 1 ]] && echo true || echo false )" "$( [[ ${TUXCODEX_SMOKE_APPROVAL:-} == 1 ]] && echo true || echo false )" "$( [[ ${TUXCODEX_SMOKE_FULL_ACCESS:-} == 1 ]] && echo true || echo false )" >"$report"
+      echo 'TuxCodex sent Standard and confirmed Full Access chats through the Rust bridge.'
       exit 0
     fi
     if ! kill -0 "$app_pid" 2>/dev/null; then break; fi

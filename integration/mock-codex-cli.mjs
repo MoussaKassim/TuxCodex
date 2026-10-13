@@ -4,6 +4,7 @@ import { appendFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 
 let thread = null;
+let turns = 0;
 const write = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
 const record = (method, params) => {
   if (process.env.TUXCODEX_E2E_LOG) appendFileSync(process.env.TUXCODEX_E2E_LOG, `${JSON.stringify({ method, params })}\n`);
@@ -29,16 +30,18 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     thread = { id: "smoke-thread", cwd: params.cwd || process.cwd(), name: "System smoke", preview: "System smoke", updatedAt: Date.now() / 1000 };
     return write({ id, result: { thread } });
   }
+  if (method === "thread/resume") return write({ id, result: { thread } });
   if (method === "turn/start") {
-    write({ id, result: { turn: { id: "smoke-turn", status: "inProgress", items: [], error: null } } });
-    if (process.env.TUXCODEX_SMOKE_APPROVAL === "1") {
+    const turnId = turns++ === 0 ? "smoke-turn" : `smoke-turn-${turns}`;
+    write({ id, result: { turn: { id: turnId, status: "inProgress", items: [], error: null } } });
+    if (process.env.TUXCODEX_SMOKE_APPROVAL === "1" && params.approvalPolicy !== "never") {
       write({ id: 9001, method: "item/commandExecution/requestApproval", params: { command: "printf approval-smoke", reason: "Verify the approval decision", cwd: thread.cwd } });
       record("approval/requested", { id: 9001 });
       return;
     }
     setTimeout(() => {
       write({ method: "item/agentMessage/delta", params: { threadId: "smoke-thread", itemId: "smoke-reply", delta: "System smoke reply ready." } });
-      write({ method: "turn/completed", params: { threadId: "smoke-thread", turn: { id: "smoke-turn", status: "completed" } } });
+      write({ method: "turn/completed", params: { threadId: "smoke-thread", turn: { id: turnId, status: "completed" } } });
     }, 100);
     return;
   }

@@ -70,7 +70,7 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles deb
       - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex" test-results/linux-smoke.json
-      - run: TUXCODEX_SMOKE_SELECT_MODEL=1 TUXCODEX_SMOKE_APPROVAL=1 bash scripts/smoke-linux-chat.sh "$PWD/src-tauri/target/release/tuxcodex" "$PWD/integration/mock-codex-cli.mjs" test-results/linux-chat-smoke.json
+      - run: TUXCODEX_SMOKE_SELECT_MODEL=1 TUXCODEX_SMOKE_APPROVAL=1 TUXCODEX_SMOKE_FULL_ACCESS=1 bash scripts/smoke-linux-chat.sh "$PWD/src-tauri/target/release/tuxcodex" "$PWD/integration/mock-codex-cli.mjs" test-results/linux-chat-smoke.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -118,7 +118,7 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles deb
       - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex" test-results/linux-smoke.json
-      - run: TUXCODEX_SMOKE_SELECT_MODEL=1 TUXCODEX_SMOKE_APPROVAL=1 bash scripts/smoke-linux-chat.sh "$PWD/src-tauri/target/release/tuxcodex" "$PWD/integration/mock-codex-cli.mjs" test-results/linux-chat-smoke.json
+      - run: TUXCODEX_SMOKE_SELECT_MODEL=1 TUXCODEX_SMOKE_APPROVAL=1 TUXCODEX_SMOKE_FULL_ACCESS=1 bash scripts/smoke-linux-chat.sh "$PWD/src-tauri/target/release/tuxcodex" "$PWD/integration/mock-codex-cli.mjs" test-results/linux-chat-smoke.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -162,7 +162,7 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles rpm
       - run: bash scripts/smoke-linux-window.sh "$PWD/src-tauri/target/release/tuxcodex" test-results/linux-smoke.json
-      - run: TUXCODEX_SMOKE_SELECT_MODEL=1 TUXCODEX_SMOKE_APPROVAL=1 bash scripts/smoke-linux-chat.sh "$PWD/src-tauri/target/release/tuxcodex" "$PWD/integration/mock-codex-cli.mjs" test-results/linux-chat-smoke.json
+      - run: TUXCODEX_SMOKE_SELECT_MODEL=1 TUXCODEX_SMOKE_APPROVAL=1 TUXCODEX_SMOKE_FULL_ACCESS=1 bash scripts/smoke-linux-chat.sh "$PWD/src-tauri/target/release/tuxcodex" "$PWD/integration/mock-codex-cli.mjs" test-results/linux-chat-smoke.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

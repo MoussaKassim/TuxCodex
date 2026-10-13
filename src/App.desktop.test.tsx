@@ -121,12 +121,19 @@ describe("TuxCodex desktop workflows", () => {
   });
 
   it("switches permission modes from the composer without bypassing confirmation", async () => {
+    const user = userEvent.setup();
     render(<App />);
     await screen.findByText("Codex connected");
-    fireEvent.click(screen.getByRole("button", { name: "Switch to Full Access" }));
+    await user.click(screen.getByRole("textbox", { name: "Message to Codex" }));
+    for (let index = 0; index < 6; index++) await user.tab();
+    expect(screen.getByRole("button", { name: "Switch to Full Access" })).toHaveFocus();
+    await user.keyboard("{Enter}");
     expect(screen.getByRole("alertdialog", { name: "Enable Full Access" })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}").permissionMode).toBe("standard");
-    fireEvent.click(screen.getByRole("button", { name: "Enable Full Access" }));
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Enable Full Access" })).toHaveFocus();
+    await user.keyboard("{Enter}");
     await waitFor(() => expect(screen.getByRole("button", { name: "Switch to Standard permissions" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Switch to Standard permissions" }));
     await waitFor(() => expect(JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}").permissionMode).toBe("standard"));
