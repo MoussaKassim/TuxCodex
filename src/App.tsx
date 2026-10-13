@@ -13,9 +13,11 @@ import {
   Command,
   FolderOpen,
   FileDiff,
+  GitBranch,
   Menu,
   MessageSquare,
   MoreHorizontal,
+  Paperclip,
   Plus,
   RotateCcw,
   Search,
@@ -26,11 +28,11 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { connect, errorText, inDesktop, methodThreadId, respondApproval, rpc, threadItems } from "./api";
-import type { ChatItem, Model, ServerMessage, Settings, Thread } from "./types";
+import { connect, createWorktree, errorText, gitSnapshot, inDesktop, methodThreadId, respondApproval, rpc, threadItems } from "./api";
+import type { ChatItem, GitSnapshot, Model, ServerMessage, Settings, Thread } from "./types";
 import type { PlanStep } from "./types";
 import MarkdownMessage from "./MarkdownMessage";
-import ReviewPanel from "./ReviewPanel";
+import ReviewPanel, { type ReviewTab } from "./ReviewPanel";
 
 const defaultSettings: Settings = { codexPath: "", cwd: "", model: "", effort: "", theme: "system" };
 const demoThreads: Thread[] = [
@@ -47,6 +49,15 @@ function readSettings(): Settings {
     return { ...defaultSettings, ...JSON.parse(localStorage.getItem("tuxcodex-settings") || "{}") };
   } catch {
     return defaultSettings;
+  }
+}
+
+function readRecentWorkspaces(): string[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem("tuxcodex-workspaces") || "[]");
+    return Array.isArray(saved) ? saved.filter((path): path is string => typeof path === "string" && Boolean(path.trim())).slice(0, 12) : [];
+  } catch {
+    return [];
   }
 }
 
@@ -73,6 +84,7 @@ function shortPath(path: string): string {
 
 export default function App() {
   const [settings, setSettings] = useState<Settings>(readSettings);
+  const [recentWorkspaces, setRecentWorkspaces] = useState<string[]>(readRecentWorkspaces);
   const [draftSettings, setDraftSettings] = useState<Settings>(settings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -85,15 +97,22 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(inDesktop ? null : "demo-1");
   const [items, setItems] = useState<ChatItem[]>(inDesktop ? [] : demoItems);
   const [draft, setDraft] = useState("");
+  const [attachments, setAttachments] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [approvalQueue, setApprovalQueue] = useState<ServerMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [reviewTab, setReviewTab] = useState<"changes" | "plan">("changes");
+  const [reviewTab, setReviewTab] = useState<ReviewTab>("git");
   const [diff, setDiff] = useState("");
   const [plan, setPlan] = useState<PlanStep[]>([]);
+  const [git, setGit] = useState<GitSnapshot | null>(null);
+  const [gitLoading, setGitLoading] = useState(false);
+  const [gitError, setGitError] = useState<string | null>(null);
+  const [gitRevision, setGitRevision] = useState(0);
+  const [creatingWorktree, setCreatingWorktree] = useState(false);
+  const [worktreeNotice, setWorktreeNotice] = useState<string | null>(null);
   const [expandedActivity, setExpandedActivity] = useState<string | null>(null);
   const selectedRef = useRef<string | null>(selectedId);
   const turnRef = useRef<string | null>(null);
@@ -104,6 +123,19 @@ export default function App() {
     localStorage.setItem("tuxcodex-settings", JSON.stringify(settings));
     document.documentElement.dataset.theme = settings.theme;
   }, [settings]);
+
+  useEffect(() => {
+    const path = settings.cwd.trim();
+    if (!path) return;
+    setRecentWorkspaces((previous) => {
+      if (previous[0] === path) return previous;
+      return [path, ...previous.filter((entry) => entry !== path)].slice(0, 12);
+    });
+  }, [settings.cwd]);
+
+  useEffect(() => {
+    localStorage.setItem("tuxcodex-workspaces", JSON.stringify(recentWorkspaces));
+  }, [recentWorkspaces]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -128,6 +160,7 @@ export default function App() {
       turnRef.current = null;
       setSelectedId(null);
       setItems([]);
+      setAttachments([]);
       setDiff("");
       setPlan([]);
       setBusy(false);
@@ -178,6 +211,7 @@ export default function App() {
               if (turn?.status === "failed") setError(turn.error?.message || "The Codex turn failed.");
             }
             void refreshThreads();
+            setGitRevision((revision) => revision + 1);
             if (threadId) setApprovalQueue((previous) => previous.filter((request) => request.params.threadId !== threadId));
             return;
           }
@@ -256,6 +290,8 @@ export default function App() {
     setDiff("");
     setPlan([]);
     setExpandedActivity(null);
+    setWorktreeNotice(null);
+    setAttachments([]);
     if (!inDesktop) {
       setItems(id === "demo-1" ? demoItems : [
         { id: "sample-u", role: "user", text: "Can you help me understand this project?" },
@@ -281,6 +317,7 @@ export default function App() {
     setSelectedId(null);
     setItems([]);
     setDraft("");
+    setAttachments([]);
     setBusy(false);
     turnRef.current = null;
     setSidebarOpen(false);
@@ -289,6 +326,7 @@ export default function App() {
     setDiff("");
     setPlan([]);
     setExpandedActivity(null);
+    setWorktreeNotice(null);
     requestAnimationFrame(() => textareaRef.current?.focus());
   }
 
@@ -305,20 +343,26 @@ export default function App() {
 
   async function sendMessage() {
     const text = draft.trim();
-    if (!text || busy || connection === "disconnected" || connection === "connecting") return;
+    const images = attachments;
+    if ((!text && images.length === 0) || busy || creatingWorktree || connection === "disconnected" || connection === "connecting") return;
+    if (images.length && !modelSupportsImages) {
+      setError("The selected model does not support images. Remove the attachments or choose another model.");
+      return;
+    }
     setDraft("");
+    setAttachments([]);
     setError(null);
     setBusy(true);
     if (connection === "demo") {
       let id = selectedRef.current;
       if (!id) {
         id = `demo-${Date.now()}`;
-        const thread = { id, name: text.slice(0, 48), preview: text, updatedAt: Date.now() / 1000 };
+        const thread = { id, name: (text || "Image attachment").slice(0, 48), preview: text || "Image attachment", updatedAt: Date.now() / 1000 };
         selectedRef.current = id;
         setSelectedId(id);
         setThreads((previous) => [thread, ...previous]);
       }
-      setItems((previous) => [...previous, { id: `user-${Date.now()}`, role: "user", text }]);
+      setItems((previous) => [...previous, { id: `user-${Date.now()}`, role: "user", text: [text, ...images.map((path) => `[Image: ${shortPath(path)}]`)].filter(Boolean).join("\n") }]);
       setTimeout(() => {
         setItems((previous) => [...previous, {
           id: `assistant-${Date.now()}`,
@@ -329,6 +373,7 @@ export default function App() {
       }, 700);
       return;
     }
+    let optimisticId: string | null = null;
     try {
       let id = selectedRef.current;
       if (!id) {
@@ -343,10 +388,12 @@ export default function App() {
       } else {
         await rpc("thread/resume", { threadId: id });
       }
-      setItems((previous) => [...previous, { id: `local-${Date.now()}`, role: "user", text }]);
+      const localId = `local-${Date.now()}`;
+      optimisticId = localId;
+      setItems((previous) => [...previous, { id: localId, role: "user", text: [text, ...images.map((path) => `[Image: ${shortPath(path)}]`)].filter(Boolean).join("\n") }]);
       const result = await rpc<{ turn: { id: string } }>("turn/start", {
         threadId: id,
-        input: [{ type: "text", text }],
+        input: [...(text ? [{ type: "text", text }] : []), ...images.map((path) => ({ type: "localImage", path }))],
         ...(settings.model ? { model: settings.model } : {}),
         ...(settings.effort && effortOptions.some((option) => option.reasoningEffort === settings.effort) ? { effort: settings.effort } : {}),
       });
@@ -354,6 +401,9 @@ export default function App() {
       void refreshThreads();
     } catch (failure) {
       setBusy(false);
+      if (optimisticId) setItems((previous) => previous.filter((item) => item.id !== optimisticId));
+      setDraft((current) => current || text);
+      setAttachments((current) => Array.from(new Set([...images, ...current])).slice(0, 5));
       setError(errorText(failure));
     }
   }
@@ -405,6 +455,69 @@ export default function App() {
     }
   }
 
+  async function attachImages() {
+    if (!inDesktop) return;
+    try {
+      const picked = await open({ multiple: true, directory: false, title: "Attach images to Codex", filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] }] });
+      const paths = typeof picked === "string" ? [picked] : Array.isArray(picked) ? picked : [];
+      setAttachments((current) => Array.from(new Set([...current, ...paths])).slice(0, 5));
+    } catch (failure) {
+      setError(errorText(failure));
+    }
+  }
+
+  async function makeWorktree() {
+    if (!inDesktop || !settings.cwd || creatingWorktree || busy) return;
+    setCreatingWorktree(true);
+    setError(null);
+    try {
+      const created = await createWorktree(settings.cwd);
+      setSettings((current) => ({ ...current, cwd: created.path }));
+      setWorktreeNotice(`Worktree created from ${shortPath(created.sourceRoot)} at HEAD. Local uncommitted changes were not copied.`);
+      setReviewTab("git");
+      setReviewOpen(true);
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setCreatingWorktree(false);
+    }
+  }
+
+  async function reviewChanges() {
+    if (!inDesktop || connection !== "connected" || busy || !workspacePath) return;
+    setBusy(true);
+    setError(null);
+    let optimisticId: string | null = null;
+    try {
+      let id = selectedRef.current;
+      if (!id) {
+        const params: Record<string, unknown> = { cwd: workspacePath };
+        if (settings.model) params.model = settings.model;
+        const started = await rpc<{ thread: Thread }>("thread/start", params);
+        id = started.thread.id;
+        selectedRef.current = id;
+        setSelectedId(id);
+        setItems([]);
+      } else {
+        await rpc("thread/resume", { threadId: id });
+      }
+      const localId = `review-${Date.now()}`;
+      optimisticId = localId;
+      setItems((previous) => [...previous, { id: localId, role: "user", text: "Review uncommitted changes" }]);
+      const result = await rpc<{ turn: { id: string } }>("review/start", {
+        threadId: id,
+        delivery: "inline",
+        target: { type: "uncommittedChanges" },
+      });
+      turnRef.current = result.turn.id;
+      void refreshThreads();
+    } catch (failure) {
+      setBusy(false);
+      if (optimisticId) setItems((previous) => previous.filter((item) => item.id !== optimisticId));
+      setError(errorText(failure));
+    }
+  }
+
   async function openProject() {
     const url = "https://github.com/MoussaKassim/TuxCodex";
     if (!inDesktop) {
@@ -419,14 +532,39 @@ export default function App() {
   }
 
   const activeThread = threads.find((thread) => thread.id === selectedId);
+  const workspacePath = activeThread?.cwd || settings.cwd;
+  useEffect(() => {
+    if (!reviewOpen || reviewTab !== "git") return;
+    if (!inDesktop || !workspacePath) {
+      setGit(null);
+      setGitError(null);
+      setGitLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setGitLoading(true);
+    setGitError(null);
+    void gitSnapshot(workspacePath).then((snapshot) => {
+      if (!cancelled) setGit(snapshot);
+    }).catch((failure) => {
+      if (!cancelled) {
+        setGit(null);
+        setGitError(errorText(failure));
+      }
+    }).finally(() => {
+      if (!cancelled) setGitLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [reviewOpen, reviewTab, workspacePath, gitRevision]);
   const matchingThreads = threads.filter((thread) => `${displayName(thread)} ${thread.cwd || ""}`.toLowerCase().includes(search.toLowerCase()));
   const projectGroups = Array.from(matchingThreads.reduce((groups, thread) => {
     const key = thread.cwd || "Other chats";
     groups.set(key, [...(groups.get(key) || []), thread]);
     return groups;
-  }, new Map<string, Thread[]>()).entries());
+  }, new Map<string, Thread[]>(recentWorkspaces.filter((path) => path.toLowerCase().includes(search.toLowerCase())).map((path) => [path, []]))).entries());
   const activeModel = models.find((model) => (model.model || model.id) === settings.model) || models.find((model) => model.isDefault);
   const effortOptions = activeModel?.supportedReasoningEfforts || [];
+  const modelSupportsImages = activeModel?.inputModalities?.includes("image") !== false;
   const approval = approvalQueue[0];
   const approvalParams = approval?.params || {};
   const approvalCommand = typeof approvalParams.command === "string" ? approvalParams.command : "";
@@ -453,7 +591,7 @@ export default function App() {
               <time>{formatDate(thread.updatedAt || thread.createdAt)}</time>
             </button>
           ))}</div>)}
-          {matchingThreads.length === 0 && <p className="empty-search">{search ? "No chats found" : "Your chats will appear here"}</p>}
+          {projectGroups.length === 0 && <p className="empty-search">{search ? "No chats found" : "Your projects and chats will appear here"}</p>}
         </div>
         <div className="sidebar-bottom">
           <div className="connection-card">
@@ -476,7 +614,7 @@ export default function App() {
           </div>
           <div className="topbar-right">
             <span className={`top-status ${connection}`}><span className="status-dot" />{connection === "connected" ? "Connected" : connection === "demo" ? "Preview" : connection === "connecting" ? "Connecting" : "Offline"}</span>
-            <button className={`review-toggle ${reviewOpen ? "active" : ""}`} onClick={() => { setReviewTab("changes"); setReviewOpen(!reviewOpen); }} title="Review code changes"><FileDiff size={16} /><span>Review</span></button>
+            <button className={`review-toggle ${reviewOpen ? "active" : ""}`} onClick={() => { setReviewTab("git"); setReviewOpen(!reviewOpen); }} title="Review code changes"><FileDiff size={16} /><span>Review</span></button>
             <button className="icon-button top-settings" title="Settings" onClick={() => { setDraftSettings(settings); setSettingsOpen(true); }}><Settings2 size={19} /></button>
             {selectedId && inDesktop && <div className="menu-anchor"><button className="icon-button" title="Chat actions" onClick={() => setMenuOpen(!menuOpen)}><MoreHorizontal size={21} /></button>{menuOpen && <div className="dropdown-menu"><button onClick={() => void archiveThread()}><Archive size={16} /> Archive chat</button><button className="danger" onClick={() => void archiveThread(true)}><Trash2 size={16} /> Delete chat</button></div>}</div>}
           </div>
@@ -485,6 +623,7 @@ export default function App() {
         {connection === "disconnected" && <div className="setup-banner"><div className="banner-icon"><Terminal size={20} /></div><div><strong>Codex app-server is not connected</strong><p>{connectionDetail} Install the Codex CLI, run <code>codex login</code>, or set its path in Settings.</p></div><button onClick={() => void loadServer(settings.codexPath, true)}><RotateCcw size={15} /> Retry</button></div>}
         {connection === "connected" && authMissing && <div className="setup-banner"><div className="banner-icon"><Terminal size={20} /></div><div><strong>Sign in to Codex</strong><p>Run <code>codex login</code> in a terminal, then restart the server from Settings.</p></div></div>}
         {connection === "demo" && <div className="demo-banner"><CircleHelp size={16} /><span>{inDesktop ? `Offline preview. ${connectionDetail}` : "Browser preview. Open the Tauri desktop app to use Codex."}</span>{inDesktop && <button onClick={() => void loadServer(settings.codexPath, true)}><RotateCcw size={15} /> Retry</button>}</div>}
+        {worktreeNotice && <div className="worktree-banner"><GitBranch size={16} /><span>{worktreeNotice}</span><button onClick={() => setWorktreeNotice(null)} aria-label="Dismiss worktree notice"><X size={15} /></button></div>}
         {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => setError(null)} aria-label="Dismiss error"><X size={16} /></button></div>}
 
         <div className="conversation-scroll">
@@ -501,7 +640,7 @@ export default function App() {
           ) : (
             <div className="message-list">
               {items.map((item) => item.role === "activity" ? (
-                <div key={item.id} className="activity-wrap"><button className="activity-item" onClick={() => { if (item.kind === "Files") { setReviewTab("changes"); setReviewOpen(true); } else setExpandedActivity(expandedActivity === item.id ? null : item.id); }}><div className="activity-icon">{item.kind === "Command" ? <Command size={15} /> : <Code2 size={15} />}</div><div><strong>{item.kind}</strong><code>{item.text}</code></div><span className={`activity-status ${item.status}`}>{item.status === "inProgress" ? "Running" : item.status || "Done"}</span><ChevronDown size={14} /></button>{expandedActivity === item.id && item.kind === "Command" && <pre className="activity-output">{item.detail || "No command output available."}</pre>}</div>
+                <div key={item.id} className="activity-wrap"><button className="activity-item" onClick={() => { if (item.kind === "Files") { setReviewTab("chat"); setReviewOpen(true); } else setExpandedActivity(expandedActivity === item.id ? null : item.id); }}><div className="activity-icon">{item.kind === "Command" ? <Command size={15} /> : <Code2 size={15} />}</div><div><strong>{item.kind}</strong><code>{item.text}</code></div><span className={`activity-status ${item.status}`}>{item.status === "inProgress" ? "Running" : item.status || "Done"}</span><ChevronDown size={14} /></button>{expandedActivity === item.id && item.kind === "Command" && <pre className="activity-output">{item.detail || "No command output available."}</pre>}</div>
               ) : (
                 <div key={item.id} className={`message-row ${item.role}`}>
                   <div className={`avatar ${item.role}`}>{item.role === "assistant" ? <Terminal size={16} /> : "Y"}</div>
@@ -517,12 +656,14 @@ export default function App() {
         <div className="composer-zone">
           <div className="composer">
             <textarea ref={textareaRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} placeholder={connection === "disconnected" ? "Connect to Codex to start chatting…" : "Ask Codex anything…"} rows={2} disabled={connection === "connecting" || connection === "disconnected"} aria-label="Message to Codex" />
-            <div className="composer-footer"><div className="composer-controls"><div className="composer-context"><FolderOpen size={15} /><span>{activeThread?.cwd ? shortPath(activeThread.cwd) : settings.cwd ? shortPath(settings.cwd) : "Default workspace"}</span></div><select aria-label="Model" className="composer-select" value={settings.model} onChange={(event) => setSettings((current) => ({ ...current, model: event.target.value, effort: "" }))}><option value="">Default model</option>{models.map((model) => <option key={model.id} value={model.model || model.id}>{model.displayName || model.model || model.id}</option>)}</select>{effortOptions.length > 0 && <select aria-label="Reasoning effort" className="composer-select" value={settings.effort} onChange={(event) => setSettings((current) => ({ ...current, effort: event.target.value }))}><option value="">Default effort</option>{effortOptions.map((option) => <option key={option.reasoningEffort} value={option.reasoningEffort}>{option.reasoningEffort}</option>)}</select>}</div><div className="composer-actions">{busy ? <button className="send-button stop-button" onClick={() => void stopTurn()} title="Stop turn" disabled={!turnRef.current}><Square size={15} fill="currentColor" /></button> : <button className="send-button" onClick={() => void sendMessage()} disabled={!draft.trim() || connection === "connecting" || connection === "disconnected"} title="Send message"><ArrowUp size={19} /></button>}</div></div>
+            {attachments.length > 0 && <div className="attachment-list">{attachments.map((path) => <span className="attachment-chip" key={path} title={path}><Paperclip size={12} />{shortPath(path)}<button onClick={() => setAttachments((current) => current.filter((entry) => entry !== path))} aria-label={`Remove ${shortPath(path)}`}><X size={12} /></button></span>)}</div>}
+            <div className="composer-footer"><div className="composer-controls"><div className="composer-context"><FolderOpen size={15} /><span>{activeThread?.cwd ? shortPath(activeThread.cwd) : settings.cwd ? shortPath(settings.cwd) : "Default workspace"}</span></div><button className="attach-button" onClick={() => void attachImages()} disabled={!inDesktop || busy || creatingWorktree || attachments.length >= 5 || !modelSupportsImages} title={modelSupportsImages ? "Attach images" : "This model does not support images"} aria-label="Attach images"><Paperclip size={15} /></button><select aria-label="Model" className="composer-select" value={settings.model} onChange={(event) => setSettings((current) => ({ ...current, model: event.target.value, effort: "" }))}><option value="">Default model</option>{models.map((model) => <option key={model.id} value={model.model || model.id}>{model.displayName || model.model || model.id}</option>)}</select>{effortOptions.length > 0 && <select aria-label="Reasoning effort" className="composer-select" value={settings.effort} onChange={(event) => setSettings((current) => ({ ...current, effort: event.target.value }))}><option value="">Default effort</option>{effortOptions.map((option) => <option key={option.reasoningEffort} value={option.reasoningEffort}>{option.reasoningEffort}</option>)}</select>}</div><div className="composer-actions">{busy ? <button className="send-button stop-button" onClick={() => void stopTurn()} title="Stop turn" disabled={!turnRef.current}><Square size={15} fill="currentColor" /></button> : <button className="send-button" onClick={() => void sendMessage()} disabled={(!draft.trim() && attachments.length === 0) || (attachments.length > 0 && !modelSupportsImages) || creatingWorktree || connection === "connecting" || connection === "disconnected"} title="Send message"><ArrowUp size={19} /></button>}</div></div>
           </div>
+          {!selectedId && settings.cwd && <div className="worktree-create"><button onClick={() => void makeWorktree()} disabled={!inDesktop || creatingWorktree || busy}><GitBranch size={14} />{creatingWorktree ? "Creating worktree…" : "Create worktree from HEAD"}</button><span>Starts a separate checkout. Local uncommitted changes stay in the current checkout.</span></div>}
           <div className="composer-hint"><span>Codex can make mistakes. Review changes before applying them.</span><span><kbd>Enter</kbd> send <b>·</b> <kbd>Shift Enter</kbd> new line</span></div>
         </div>
       </main>
-      {reviewOpen && <ReviewPanel diff={diff} plan={plan} tab={reviewTab} onTabChange={setReviewTab} onClose={() => setReviewOpen(false)} />}
+      {reviewOpen && <ReviewPanel chatDiff={diff} plan={plan} git={git} gitLoading={gitLoading} gitError={gitError} canReview={connection === "connected" && !busy && !gitLoading && Boolean(git?.files.length)} tab={reviewTab} onTabChange={setReviewTab} onRefreshGit={() => setGitRevision((revision) => revision + 1)} onReview={() => void reviewChanges()} onClose={() => setReviewOpen(false)} />}
 
       {settingsOpen && <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="settings-modal" role="dialog" aria-modal="true" aria-label="Settings"><div className="modal-header"><div><span className="eyebrow">PREFERENCES</span><h2>Settings</h2></div><button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={20} /></button></div><div className="settings-content"><label><span>Workspace folder</span><small>Absolute path used for new Codex chats.</small><div className="path-picker"><input value={draftSettings.cwd} onChange={(event) => setDraftSettings({ ...draftSettings, cwd: event.target.value })} placeholder="/home/you/projects/my-app" />{inDesktop && <button type="button" className="secondary-button" onClick={() => void chooseWorkspace()}><FolderOpen size={15} /> Browse</button>}</div></label><label><span>Codex CLI path</span><small>Leave empty to find <code>codex</code> automatically.</small><input value={draftSettings.codexPath} onChange={(event) => setDraftSettings({ ...draftSettings, codexPath: event.target.value })} placeholder="/home/you/.local/bin/codex" /></label><label><span>Model</span><small>Models come from your local Codex app-server.</small><select value={draftSettings.model} onChange={(event) => setDraftSettings({ ...draftSettings, model: event.target.value, effort: "" })}><option value="">Codex default</option>{models.map((model) => <option key={model.id} value={model.model || model.id}>{model.displayName || model.model || model.id}</option>)}</select></label><label><span>Appearance</span><select value={draftSettings.theme} onChange={(event) => setDraftSettings({ ...draftSettings, theme: event.target.value as Settings["theme"] })}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label><div className="server-info"><span className={`status-dot ${connection}`} /><div><strong>{connectionDetail}</strong><small>Authentication is managed by the Codex CLI. Run <code>codex login</code> in a terminal if needed.</small></div></div></div><div className="modal-footer"><button className="secondary-button" onClick={() => { saveSettings(); if (inDesktop) void loadServer(draftSettings.codexPath, true); }}><RotateCcw size={16} /> Save & restart server</button><button className="primary-button" onClick={saveSettings}>Save settings</button></div></section></div>}
 

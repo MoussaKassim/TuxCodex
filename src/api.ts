@@ -1,5 +1,5 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import type { ChatItem, ServerMessage } from "./types";
+import type { ChatItem, CreatedWorktree, GitSnapshot, ServerMessage } from "./types";
 
 export const inDesktop = isTauri();
 
@@ -13,6 +13,14 @@ export async function rpc<T = unknown>(method: string, params: Record<string, un
 
 export async function respondApproval(id: number, decision: "accept" | "decline"): Promise<void> {
   await invoke("respond_approval", { id, decision });
+}
+
+export async function gitSnapshot(cwd: string): Promise<GitSnapshot> {
+  return invoke<GitSnapshot>("git_snapshot", { cwd });
+}
+
+export async function createWorktree(cwd: string): Promise<CreatedWorktree> {
+  return invoke<CreatedWorktree>("create_worktree", { cwd });
 }
 
 export function errorText(error: unknown): string {
@@ -34,7 +42,13 @@ export function threadItems(raw: unknown): ChatItem[] {
       if (item.type === "userMessage") {
         const content = Array.isArray(item.content) ? item.content : [];
         const text = content
-          .map((part) => (part as { type?: string; text?: string }).type === "text" ? (part as { text?: string }).text || "" : "")
+          .map((part) => {
+            const input = part as { type?: string; text?: string; path?: string };
+            if (input.type === "text") return input.text || "";
+            if (input.type === "localImage") return `[Image: ${input.path?.split("/").at(-1) || "attachment"}]`;
+            if (input.type === "image") return "[Image attachment]";
+            return "";
+          })
           .filter(Boolean)
           .join("\n");
         if (text) items.push({ id, role: "user", text });

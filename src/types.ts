@@ -16,11 +16,31 @@ export interface Model {
   hidden?: boolean;
   defaultReasoningEffort?: string;
   supportedReasoningEfforts?: { reasoningEffort: string; description?: string }[];
+  inputModalities?: string[];
 }
 
 export interface PlanStep {
   step: string;
   status: "pending" | "inProgress" | "completed";
+}
+
+export interface GitFile {
+  path: string;
+  status: string;
+}
+
+export interface GitSnapshot {
+  root: string;
+  branch: string;
+  isWorktree: boolean;
+  files: GitFile[];
+  diff: string;
+  truncated: boolean;
+}
+
+export interface CreatedWorktree {
+  path: string;
+  sourceRoot: string;
 }
 
 export interface ChatItem {

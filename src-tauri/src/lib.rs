@@ -11,6 +11,8 @@ use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::{oneshot, Mutex};
 use tokio::time::{timeout, Duration};
 
+mod git;
+
 #[derive(Default)]
 struct Backend {
     server: Mutex<Option<Arc<Server>>>,
@@ -153,6 +155,7 @@ fn is_allowed_method(method: &str) -> bool {
             | "thread/delete"
             | "turn/start"
             | "turn/interrupt"
+            | "review/start"
     )
 }
 
@@ -339,7 +342,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(Backend::default())
-        .invoke_handler(tauri::generate_handler![connect, rpc, respond_approval])
+        .invoke_handler(tauri::generate_handler![
+            connect,
+            rpc,
+            respond_approval,
+            git::git_snapshot,
+            git::create_worktree
+        ])
         .run(tauri::generate_context!())
         .expect("failed to run TuxCodex");
 }
