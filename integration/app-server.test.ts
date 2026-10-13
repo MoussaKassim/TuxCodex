@@ -62,7 +62,11 @@ describe("installed Codex app-server protocol", () => {
   });
 
   afterAll(async () => {
-    child?.kill();
+    if (child && child.exitCode === null && child.signalCode === null) {
+      const stopped = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+      child.kill();
+      await stopped;
+    }
     if (fixture) await rm(fixture, { recursive: true, force: true });
   });
 
