@@ -385,10 +385,22 @@ pub fn run() {
             files::copy_workspace_file,
             audio::import_audio,
             audio::save_recording,
-            audio::read_audio
+            audio::read_audio,
+            report_frontend_error
         ])
         .run(tauri::generate_context!())
         .expect("failed to run TuxCodex");
+}
+
+#[tauri::command]
+fn report_frontend_error(message: String) {
+    let safe = message
+        .chars()
+        .take(2000)
+        .collect::<String>()
+        .replace('\n', " ")
+        .replace('\r', " ");
+    eprintln!("[TuxCodex webview] {safe}");
 }
 
 #[cfg(test)]

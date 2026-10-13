@@ -95,7 +95,7 @@ if [[ ${1:-} == --session ]]; then
     done
     if [[ -z $thumbnail ]]; then
       cat "$app_log" "$protocol_log"
-      stat "$workspace/smoke-output.svg" || true
+      stat "$TUXCODEX_E2E_WORKSPACE/smoke-output.svg" || true
       xdotool mousemove --window "$window_id" 120 "$((HEIGHT - 115))" click 1
       sleep 1
       scrot "${report%.json}-diagnostic.png" || true
