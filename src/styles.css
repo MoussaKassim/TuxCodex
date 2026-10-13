@@ -89,7 +89,7 @@ button:disabled { cursor: not-allowed; }
 .app-shell { display: flex; width: 100%; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
 .sidebar { width: 287px; flex: 0 0 287px; background: var(--sidebar); border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; min-height: 0; }
 .brand-row { display: flex; align-items: center; gap: 11px; padding: 27px 22px 26px; }
-.brand-mark { width: 34px; height: 34px; display: grid; place-items: center; color: var(--accent); background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: 10px; }
+.brand-mark { width: 34px; height: 34px; display: block; flex: none; border-radius: 9px; }
 .brand-copy { display: flex; flex-direction: column; gap: 1px; }
 .brand-copy strong { font-size: 16px; font-weight: 700; letter-spacing: -.035em; }
 .brand-copy span { font: 500 9px/1.5 "IBM Plex Mono", monospace; letter-spacing: .115em; color: var(--accent); }
@@ -158,7 +158,7 @@ button:disabled { cursor: not-allowed; }
 .error-banner button { background: transparent; border: 0; color: inherit; }
 .conversation-scroll { flex: 1; overflow-y: auto; min-height: 0; scrollbar-color: var(--line) transparent; }
 .welcome-state { max-width: 635px; margin: auto; padding: max(30px, 8vh) 32px 45px; text-align: center; }
-.welcome-icon { display: grid; place-items: center; width: 75px; height: 75px; margin: 0 auto 25px; color: var(--accent); background: radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--accent) 25%, var(--surface)), var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); border-radius: 20px; box-shadow: 0 12px 45px color-mix(in srgb, var(--accent) 8%, transparent); }
+.welcome-icon { display: block; width: 75px; height: 75px; margin: 0 auto 25px; border-radius: 15px; box-shadow: 0 12px 45px rgba(15, 76, 162, .18); }
 .eyebrow { font: 600 10px "IBM Plex Mono", monospace; letter-spacing: .15em; color: var(--accent); }
 .welcome-state h1 { margin: 12px 0 10px; font-size: clamp(25px, 3.6vw, 34px); letter-spacing: -.055em; font-weight: 700; }
 .welcome-state p { max-width: 460px; margin: 0 auto; color: var(--muted); font-size: 13px; line-height: 1.65; }
@@ -214,6 +214,12 @@ button:disabled { cursor: not-allowed; }
 .settings-content input, .settings-content select { width: 100%; padding: 10px 11px; outline: none; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 7px; font-size: 12px; }
 .settings-content input:focus, .settings-content select:focus { border-color: var(--accent); }
 .settings-content input::placeholder { color: var(--dim); }
+.about-content { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 24px 25px; }
+.about-content img { width: 72px; height: 72px; border-radius: 14px; }
+.about-content p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.about-content strong { margin-top: 4px; font-size: 12px; }
+.about-content span { font-size: 12px; line-height: 1.7; }
+.about-content small { color: var(--dim); font-size: 11px; }
 .server-info { display: flex; align-items: flex-start; gap: 10px; padding: 11px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .server-info .status-dot { margin-top: 4px; }
 .server-info > div { display: flex; flex-direction: column; gap: 4px; }

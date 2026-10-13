@@ -2,7 +2,7 @@
 name = "tuxcodex"
 version = "0.1.0"
 description = "Unofficial cross-platform Codex desktop client"
-authors = ["TuxCodex contributors"]
+authors = ["Moussa Kassim Mohame", "Stefano Cacciatore"]
 edition = "2021"
 
 [lib]

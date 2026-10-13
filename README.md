@@ -1,8 +1,10 @@
 # TuxCodex
 
-**A desktop interface for OpenAI Codex, powered by the Codex CLI running locally in the background.**
+![TuxCodex logo: a white TX monogram on deep blue](docs/images/tuxcodex-brand.png)
 
-TuxCodex brings projects, chats, code review, and worktrees into one window. It is an independent, unofficial client built with Tauri, React, and Rust. The maintainer has used it successfully on Linux; Windows and macOS installers are available as previews.
+**A desktop workspace for OpenAI Codex on Linux, Windows, and macOS.**
+
+TuxCodex puts project switching, Codex chats, streamed work, approvals, code review, and file previews in one window. It connects to the Codex CLI installed on your computer and uses your existing Codex sign-in. Built with Tauri, React, and Rust, TuxCodex is an independent, unofficial project. The Ubuntu desktop experience has been tested; Windows and macOS installers remain previews.
 
 ![TuxCodex workspace showing the project sidebar, new chat, model picker, and worktree action](docs/images/tuxcodex-workspace.png)
 
@@ -96,7 +98,13 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 `test:app-server` needs an installed `codex` CLI on `PATH`; use `TUXCODEX_TEST_CODEX_BIN` to select another executable. The test uses a temporary Codex home and workspace without starting an inference turn.
 
-GitHub Actions runs frontend and Rust tests, checks the app-server protocol against an older and a current CLI, uploads JUnit reports and Ubuntu coverage, and builds installers for Ubuntu 22.04, Ubuntu 24.04, Fedora, Windows, and macOS. The Linux jobs check that the packaged app opens a visible window under Xvfb and upload startup time and launcher memory samples. Version tags publish installers only after the required jobs pass. Interactive testing on each platform is still valuable; the maintainer has confirmed the Linux experience. Contributions and bug reports are welcome through [Issues](https://github.com/MoussaKassim/TuxCodex/issues).
+GitHub Actions runs frontend and Rust tests, checks the app-server protocol against an older and a current CLI, uploads JUnit reports and Ubuntu coverage, and builds installers for Ubuntu 22.04, Ubuntu 24.04, Fedora, Windows, and macOS. The Linux jobs check that the packaged app opens a visible window under Xvfb and upload startup time and launcher memory samples. Version tags publish installers only after the required jobs pass. Interactive testing on each platform is still valuable. Contributions and bug reports are welcome through [Issues](https://github.com/MoussaKassim/TuxCodex/issues).
+
+## Authors
+
+TuxCodex is developed by **Moussa Kassim Mohame** and **Stefano Cacciatore**. The [Git history](https://github.com/MoussaKassim/TuxCodex/commits/main/) records contributions to the project.
+
+TuxCodex is an unofficial client and is not affiliated with OpenAI.
 
 ## License
 

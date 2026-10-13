@@ -1,5 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#0d1117"/>
-  <path d="M103 139h306v234H103z" fill="none" stroke="#78e2be" stroke-width="27" stroke-linejoin="round"/>
-  <path d="m158 217 57 40-57 40m98 11h94" fill="none" stroke="#78e2be" stroke-width="27" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TuxCodex TX logo">
+  <defs>
+    <radialGradient id="glow" cx="72%" cy="26%" r="78%">
+      <stop stop-color="#0755bd"/>
+      <stop offset=".48" stop-color="#08275e"/>
+      <stop offset="1" stop-color="#071329"/>
+    </radialGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e9f4ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="100" fill="url(#glow)"/>
+  <path d="M301 0h126L190 512H65z" fill="#1880ed" opacity=".10"/>
+  <path d="M82 142h184c19 0 35 10 43 28l11 24H216v180h-48V194h-36c-27 0-45-19-50-52Z" fill="url(#shine)"/>
+  <path d="M259 142h65c12 0 19 5 25 18l102 214h-65c-10 0-18-5-23-15L259 142Z" fill="url(#shine)"/>
+  <path d="M408 142h62L339 374h-62l131-232Z" fill="url(#shine)"/>
+  <rect x="1" y="1" width="510" height="510" rx="99" fill="none" stroke="#5da7ff" stroke-opacity=".18" stroke-width="2"/>
 </svg>

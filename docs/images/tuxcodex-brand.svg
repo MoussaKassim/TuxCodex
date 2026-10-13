@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 304" role="img" aria-label="TuxCodex logo">
+  <defs>
+    <radialGradient id="background" cx="73%" cy="25%" r="95%">
+      <stop stop-color="#0755bd"/>
+      <stop offset=".47" stop-color="#08275e"/>
+      <stop offset="1" stop-color="#071329"/>
+    </radialGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#fff"/>
+      <stop offset="1" stop-color="#e9f4ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1120" height="304" rx="40" fill="url(#background)"/>
+  <path d="M756 0h122L734 304H612z" fill="#1880ed" opacity=".10"/>
+  <g transform="translate(30 24) scale(.5)">
+    <rect width="512" height="512" rx="100" fill="#071329" fill-opacity=".35" stroke="#5da7ff" stroke-opacity=".28" stroke-width="2"/>
+    <path d="M82 142h184c19 0 35 10 43 28l11 24H216v180h-48V194h-36c-27 0-45-19-50-52Z" fill="url(#mark)"/>
+    <path d="M259 142h65c12 0 19 5 25 18l102 214h-65c-10 0-18-5-23-15L259 142Z" fill="url(#mark)"/>
+    <path d="M408 142h62L339 374h-62l131-232Z" fill="url(#mark)"/>
+  </g>
+  <text x="324" y="163" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="98" font-weight="750" letter-spacing="-5">TuxCodex</text>
+  <text x="328" y="215" fill="#b5d7ff" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="600" letter-spacing="5">DESKTOP FOR CODEX</text>
+</svg>
