@@ -51,6 +51,16 @@ if [[ ${1:-} == --session ]]; then
   fi
   xdotool type --clearmodifiers --delay 8 "$prompt"
   xdotool key Return
+  if [[ ${TUXCODEX_SMOKE_APPROVAL:-} == 1 ]]; then
+    for attempt in {1..40}; do
+      if grep -Fq '"method":"approval/requested"' "$protocol_log"; then break; fi
+      sleep .25
+    done
+    # The approval dialog focuses Decline by default, so Enter tests the safe
+    # choice without relying on theme or distribution-specific button positions.
+    sleep .5
+    xdotool key --clearmodifiers Return
+  fi
 
   for attempt in {1..30}; do
     if node --input-type=commonjs - "$protocol_log" "$prompt" <<'NODE'
@@ -68,10 +78,14 @@ if (!turn.params.input?.some((item) => item.type === "text" && item.text === pro
 if (process.env.TUXCODEX_SMOKE_SELECT_MODEL === "1") {
   if (thread.params.model !== "smoke-model" || turn.params.model !== "smoke-model" || turn.params.effort !== "low") process.exit(1);
 }
+if (process.env.TUXCODEX_SMOKE_APPROVAL === "1") {
+  const approval = requests.find((entry) => entry.method === "approval/response");
+  if (approval?.params?.decision !== "decline") process.exit(1);
+}
 NODE
     then
-      printf '{"windowVisible":true,"threadCreated":true,"chatSent":true,"standardPermissions":true,"modelSelected":%s}\n' "$( [[ ${TUXCODEX_SMOKE_SELECT_MODEL:-} == 1 ]] && echo true || echo false )" >"$report"
-      echo 'TuxCodex sent a Standard-permission chat from the packaged window through the Rust bridge.'
+      printf '{"windowVisible":true,"threadCreated":true,"chatSent":true,"standardPermissions":true,"modelSelected":%s,"approvalDeclined":%s}\n' "$( [[ ${TUXCODEX_SMOKE_SELECT_MODEL:-} == 1 ]] && echo true || echo false )" "$( [[ ${TUXCODEX_SMOKE_APPROVAL:-} == 1 ]] && echo true || echo false )" >"$report"
+      echo 'TuxCodex sent a Standard-permission chat and explicit approval decision through the Rust bridge.'
       exit 0
     fi
     if ! kill -0 "$app_pid" 2>/dev/null; then break; fi

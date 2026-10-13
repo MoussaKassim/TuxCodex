@@ -208,6 +208,7 @@ describe("TuxCodex desktop workflows", () => {
     await screen.findByText("Codex connected");
     emit("codex-request", { id: 42, method: "item/commandExecution/requestApproval", params: { command: "npm test", cwd: "/workspace/project", reason: "Run the test suite" } });
     expect(screen.getByRole("alertdialog", { name: "Codex approval request" })).toHaveTextContent("npm test");
+    expect(screen.getByRole("button", { name: "Decline" })).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Decline" }));
     await waitFor(() => expect(bridge.invoke).toHaveBeenCalledWith("respond_approval", { id: 42, decision: "decline" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog", { name: "Codex approval request" })).not.toBeInTheDocument());

@@ -13,6 +13,11 @@ createInterface({ input: process.stdin }).on("line", (line) => {
   let message;
   try { message = JSON.parse(line); } catch { return; }
   if (typeof message.id !== "number") return;
+  if (message.id === 9001 && message.result) {
+    record("approval/response", message.result);
+    write({ method: "turn/completed", params: { threadId: "smoke-thread", turn: { id: "smoke-turn", status: "completed" } } });
+    return;
+  }
   const { id, method, params = {} } = message;
   record(method, params);
   if (method === "initialize") return write({ id, result: {} });
@@ -26,6 +31,11 @@ createInterface({ input: process.stdin }).on("line", (line) => {
   }
   if (method === "turn/start") {
     write({ id, result: { turn: { id: "smoke-turn", status: "inProgress", items: [], error: null } } });
+    if (process.env.TUXCODEX_SMOKE_APPROVAL === "1") {
+      write({ id: 9001, method: "item/commandExecution/requestApproval", params: { command: "printf approval-smoke", reason: "Verify the approval decision", cwd: thread.cwd } });
+      record("approval/requested", { id: 9001 });
+      return;
+    }
     setTimeout(() => {
       write({ method: "item/agentMessage/delta", params: { threadId: "smoke-thread", itemId: "smoke-reply", delta: "System smoke reply ready." } });
       write({ method: "turn/completed", params: { threadId: "smoke-thread", turn: { id: "smoke-turn", status: "completed" } } });
