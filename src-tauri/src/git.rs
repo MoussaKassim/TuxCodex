@@ -64,11 +64,24 @@ async fn git_diff_bounded(
     }
     let mut child = command
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn()
         .map_err(|error| format!("Could not run Git: {error}"))?;
     let stdout = child.stdout.take().ok_or("Git output was unavailable.")?;
+    let mut stderr = child.stderr.take().ok_or("Git errors were unavailable.")?;
+    let stderr_reader = tokio::spawn(async move {
+        let mut detail = Vec::new();
+        let mut buffer = [0; 4096];
+        while let Ok(count) = stderr.read(&mut buffer).await {
+            if count == 0 {
+                break;
+            }
+            let remaining = 8192usize.saturating_sub(detail.len());
+            detail.extend_from_slice(&buffer[..count.min(remaining)]);
+        }
+        detail
+    });
     let operation = async {
         let mut bytes = Vec::new();
         stdout
@@ -84,9 +97,11 @@ async fn git_diff_bounded(
             .wait()
             .await
             .map_err(|error| format!("Could not finish Git diff: {error}"))?;
+        let stderr = stderr_reader.await.unwrap_or_default();
         let valid_exit = status.success() || (allow_difference_exit && status.code() == Some(1));
         if !truncated && !valid_exit {
-            return Err("Git could not read the diff for this repository.".into());
+            let detail = String::from_utf8_lossy(&stderr);
+            return Err(format!("Git could not read the diff: {}", detail.trim()));
         }
         bytes.truncate(max_bytes);
         Ok((String::from_utf8_lossy(&bytes).into_owned(), truncated))
