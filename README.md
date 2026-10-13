@@ -1,45 +1,54 @@
 # TuxCodex
 
-An unofficial desktop client for OpenAI Codex on Linux, Windows, and macOS. TuxCodex uses a Tauri 2 interface and talks to the official `codex app-server` process through newline-delimited JSON-RPC over standard input and output.
+**A desktop interface for OpenAI Codex, powered by the Codex CLI running locally in the background.**
 
-The repository also contains Moussa's earlier Python/GTK 3 prototype as [`codex-desktop-linux.tar`](codex-desktop-linux.tar). The Tauri app is the active implementation; the archive remains available as a reference for the original feature set and tests. Its [original README is translated into English](docs/gtk-prototype-readme.en.md).
+TuxCodex brings projects, chats, code review, and worktrees into one window. It is an independent, unofficial client built with Tauri, React, and Rust. The maintainer has used it successfully on Linux; Windows and macOS installers are available as previews.
 
-## Features
+![TuxCodex workspace showing the project sidebar, new chat, model picker, and worktree action](docs/images/tuxcodex-workspace.png)
 
-- **Codex server lifecycle:** starts the installed Codex CLI in the background, reports connection status, and lets you restart it from Settings. The app searches common user installation paths and accepts an explicit CLI path.
-- **Projects and chats:** groups local Codex threads by workspace, creates a new project folder, keeps recently selected workspaces in the sidebar for quick switching, searches thread titles and paths, reads existing history, and offers archive or confirmed permanent deletion. Choose a workspace with the native folder picker or enter its path.
-- **Live work and review:** streams rendered Markdown replies, shows command output on demand, and displays chat file diffs, live plan steps, and Git working-tree changes in a review panel. You can ask the official Codex reviewer to review uncommitted changes. Enter sends a message, Shift+Enter adds a line, and the stop button interrupts an active turn.
-- **Git worktrees:** creates a separate detached checkout from the selected repository's current `HEAD` for a new chat. Worktrees are stored in TuxCodex's app-local data directory and remain available until you remove them with Git. Local uncommitted and ignored files are not copied.
-- **Approvals:** displays command and file-change approval requests. You can allow one request or decline it. Unanswered requests are declined after five minutes. Other server-initiated requests are rejected until the client supports them explicitly.
-- **Model and effort:** loads available models and their supported reasoning efforts from `model/list`; choose them with click-to-open pickers in the composer or use the CLI defaults.
-- **Image input:** attach up to five local PNG, JPEG, or WebP images with a message. The selected paths are sent to the local app-server as `localImage` inputs; TuxCodex stores no image copies.
-- **Audio input and playback:** attach WAV, MP3, M4A, WebM, or Ogg clips, record a voice message, and play clips from chat history. Where the webview offers speech recognition, dictated words also appear in the composer. Audio input depends on the selected Codex model and app-server version.
-- **Files and previews:** open supported workspace images, PDF, HTML, and text files in a tabbed viewer. Markdown image references can render inline; file paths in replies and code changes can open a preview. The viewer can zoom images and PDFs, save a copy, open the file in another app, or reveal it in the file manager. HTML previews are static and sandboxed. Files outside the active workspace are rejected.
-- **Permissions:** Standard uses workspace-write sandboxing and asks before escalated actions. Full Access requires an explicit confirmation and requests unrestricted sandboxing for future turns. A Codex administrator's requirements can disallow Full Access.
-- **Appearance and preview:** system, dark, light, and custom color themes, seven built-in wallpapers, imported images, and wallpaper opacity, blur, and brightness controls. If the CLI cannot start, the desktop app shows a disconnected state and a Retry action. The browser-only preview uses sample data.
+## Download
 
-TuxCodex uses the local Codex authentication and configuration. Sign in with the CLI before opening the desktop app. It does not collect or store an API key in its own settings.
+Get the latest installers from [GitHub Releases](https://github.com/MoussaKassim/TuxCodex/releases). Version 0.1.0 is a preview release.
 
-## Download and install
+| Platform | Download |
+| --- | --- |
+| Ubuntu / Debian (x86-64) | `.deb` |
+| Fedora (x86-64) | `.rpm` |
+| Windows (x64) | `-setup.exe` |
+| macOS (Apple silicon / Intel) | `.dmg` |
 
-Installers are published in [GitHub Releases](https://github.com/MoussaKassim/TuxCodex/releases). The first preview release provides the original feature set; changes on `main` reach installers after the next tagged release.
+The installers are not code signed or notarized yet, so Windows or macOS may display a warning. Each release includes `SHA256SUMS.txt` for checking downloads.
 
-| System | Package | Architecture |
-| --- | --- | --- |
-| Ubuntu and Debian | `.deb` | x86-64 |
-| Fedora | `.rpm` | x86-64 |
-| Windows | NSIS `-setup.exe` | x64 |
-| macOS | `.dmg` | Apple silicon and Intel |
+## Get started
 
-The release also includes `SHA256SUMS.txt`. These preview installers are not code signed or notarized. Windows SmartScreen and macOS Gatekeeper may warn on download or first launch. The Codex CLI must be installed and signed in separately on each machine.
+1. Install the [official Codex CLI](https://github.com/openai/codex) and sign in:
 
-## Requirements
+   ```bash
+   npm install -g @openai/codex
+   codex login
+   ```
 
-- Linux desktop with WebKitGTK 4.1, Windows with WebView2, or macOS. Ubuntu 24.04 and Fedora 43 are the Linux build bases.
-- Node.js and npm for development or for installing the Codex CLI, plus Rust and Cargo for building the desktop app.
-- The official Codex CLI, installed and authenticated on the same machine.
+2. Download and install the TuxCodex package for your operating system from [Releases](https://github.com/MoussaKassim/TuxCodex/releases).
+3. Open TuxCodex, choose a project folder, and start a chat.
 
-On Ubuntu or Debian, install the [Tauri Linux prerequisites](https://v2.tauri.app/start/prerequisites/):
+TuxCodex uses your existing Codex sign-in and configuration. The CLI is a separate prerequisite and is not bundled with the app. If TuxCodex cannot find it, set the full path to `codex` in Settings or through `TUXCODEX_CODEX_BIN`.
+
+## What you can do
+
+- **Work across projects and chats:** choose a folder, create or resume chats, search titles and paths, and archive conversations.
+- **Follow Codex as it works:** see streamed replies, command output, file changes, and plan updates; interrupt a turn when needed.
+- **Review changes:** inspect Git changes in the review panel and ask Codex to review uncommitted work.
+- **Use separate worktrees:** start a chat in a new Git worktree based on the current `HEAD`. Uncommitted and ignored files stay in the original checkout.
+- **Control approvals:** accept or decline requests to run commands or change files. Full Access requires explicit confirmation.
+- **Choose a model and reasoning effort:** use the options reported by your installed Codex CLI.
+- **Attach and preview files:** send supported images or audio, record voice input, and preview workspace files including images, PDFs, HTML, and text.
+- **Make it yours:** switch themes and customize the wallpaper.
+
+Feature availability can depend on the installed Codex CLI, selected model, and operating system.
+
+## Build from source
+
+Install Node.js, npm, Rust, and the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) for your operating system. On Ubuntu or Debian:
 
 ```bash
 sudo apt update
@@ -47,24 +56,7 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
   libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
-Install and sign in to Codex:
-
-```bash
-npm install -g @openai/codex
-codex login
-```
-
-If your desktop launcher cannot find `codex`, set its full path in TuxCodex Settings or use `TUXCODEX_CODEX_BIN`. The CLI remains a separate prerequisite and is not bundled with TuxCodex.
-
-On Windows, the app checks the usual `%APPDATA%\npm\codex.cmd` installation path. You can select another CLI path in Settings. On macOS, it checks the usual Homebrew and user installation paths.
-
-## Worktrees and review
-
-Choose a Git repository in Settings, start a new chat, then select **Create worktree from HEAD** below the composer to work in a separate checkout. The original checkout remains in the project sidebar. The worktree starts from the current commit; uncommitted and ignored files stay in the original checkout.
-
-Open **Review > Git** to inspect the current workspace's staged, unstaged, and small untracked text changes. Select **Review changes with Codex** to run an inline Codex review in the active chat. **Review > Chat** shows file changes reported during the chat, while **Review > Plan** shows live plan updates.
-
-## Run and build
+Then run:
 
 ```bash
 git clone https://github.com/MoussaKassim/TuxCodex.git
@@ -73,60 +65,32 @@ npm ci
 npm run tauri dev
 ```
 
-For a package on the current platform, use one of:
-
-```bash
-npm run tauri build -- --bundles deb
-npm run tauri build -- --bundles rpm
-npm run tauri build -- --bundles nsis
-npm run tauri build -- --bundles dmg
-```
-
-Select the bundle that matches your operating system. Tauri writes it under `src-tauri/target/release/bundle/` (or a target-specific directory). Run `npm run dev` to view a browser-only interface preview with sample data. The browser preview cannot connect to Codex.
+Use `npm run tauri build -- --bundles deb` on Ubuntu/Debian, or replace `deb` with `rpm`, `nsis`, or `dmg` on the matching platform. `npm run dev` opens a browser preview with sample data; the desktop app is needed to connect to Codex.
 
 ## How it works
 
 ```text
-React + TypeScript interface (src/)
-    │ Tauri commands and events
-    ▼
-Rust bridge (src-tauri/src/lib.rs)
-    │ JSON lines over stdio
-    ▼
-codex app-server (installed Codex CLI)
+React + TypeScript interface
+          │ Tauri commands and events
+          ▼
+      Rust bridge
+          │ JSON lines over standard input/output
+          ▼
+ codex app-server (local Codex CLI)
 ```
 
-The Rust bridge initializes one app-server process, correlates requests with responses, forwards streamed events, and handles approval replies. The frontend reads thread history from Codex using `thread/read`; it does not maintain a separate SQLite cache. The user's Codex configuration controls authentication. The app requests the sandbox and approval policy selected in Settings for each new turn; server requirements can restrict those choices. The UI does not silently approve commands or file changes in Standard mode.
+TuxCodex starts `codex app-server` in the background and displays its responses and approval requests. Codex manages authentication and chat history. The [official App Server documentation](https://learn.chatgpt.com/docs/app-server) describes the protocol.
 
-The app-server protocol changes with Codex versions. The [official App Server documentation](https://learn.chatgpt.com/docs/app-server) is the source for supported methods and event shapes. The model list is a picker catalog, not proof that a particular account can run every listed model.
-
-## Roadmap toward Codex desktop parity
-
-The most useful next additions are worktree handoff and cleanup, a branch selector when starting a worktree, an integrated terminal, general file attachments, and richer search across chat content. Later milestones can cover skills and plugins, scheduled tasks, and a deeper Git workflow. The Git review tab is read-only: it shows staged, unstaged, and small untracked text changes but does not yet stage, revert, or commit files. Large or binary untracked files appear in its file list without a text diff.
-
-If a turn fails with a model-not-supported message, update the Codex CLI and restart TuxCodex. An older CLI can return a stale default model even when authentication succeeds. You can also choose another listed model in Settings, but only a successful turn confirms access.
-
-## Tests and continuous integration
+## Development
 
 ```bash
 npm test
-npm run test:coverage
 npm run build
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-The workflow in `.github/workflows/ci.yml` runs frontend and Rust tests, then builds Ubuntu, Fedora, Windows, and both macOS architectures. Version tags publish the installers and SHA-256 checksums to GitHub Releases. Running a real inference turn requires an authenticated Codex account; build and UI checks alone do not verify that service connection. The packages need interactive smoke tests on each target operating system.
-
-## Earlier GTK prototype
-
-The attached archive contains a Python/GTK 3 implementation with a JSON-RPC client, process manager, SQLite cache, mock server, package script, and tests. It informed the initial Tauri feature list, but it has different runtime requirements and is not part of the Tauri build. The old root-level `setup.py` and `build_deb.sh` belong to that prototype and require extracted source files to run.
-
-To inspect the source without executing it:
-
-```bash
-tar -tf codex-desktop-linux.tar
-```
+GitHub Actions runs tests and builds installers for Linux, Windows, and macOS. Interactive testing on each platform is still valuable; the maintainer has confirmed the Linux experience. Contributions and bug reports are welcome through [Issues](https://github.com/MoussaKassim/TuxCodex/issues).
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+[MIT](LICENSE).
