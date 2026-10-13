@@ -7,10 +7,10 @@ The repository also contains Moussa's earlier Python/GTK 3 prototype as [`codex-
 ## Features
 
 - **Codex server lifecycle:** starts the installed Codex CLI in the background, reports connection status, and lets you restart it from Settings. The app searches common user installation paths and accepts an explicit CLI path.
-- **Chats:** lists and searches local Codex threads, starts new threads, reads existing history, resumes conversations, and offers archive or confirmed permanent deletion.
-- **Live work:** streams assistant replies and shows command and file activity. Enter sends a message, Shift+Enter adds a line, and the stop button interrupts an active turn.
+- **Projects and chats:** groups local Codex threads by workspace, lets you switch a project for new chats, searches thread titles and paths, reads existing history, and offers archive or confirmed permanent deletion. Choose a workspace with the native folder picker or enter its path.
+- **Live work and review:** streams rendered Markdown replies, shows command output on demand, and displays unified file diffs and live plan steps in a review panel. Enter sends a message, Shift+Enter adds a line, and the stop button interrupts an active turn.
 - **Approvals:** displays command and file-change approval requests. You can allow one request or decline it. Unanswered requests are declined after five minutes. Other server-initiated requests are rejected until the client supports them explicitly.
-- **Models and workspace:** loads the model picker from `model/list`, uses the CLI's default model unless you choose another, and lets you set a workspace path for new chats.
+- **Model and effort:** loads available models and their supported reasoning efforts from `model/list`; choose them in the composer or use the CLI defaults.
 - **Appearance and preview:** dark, light, and system themes. If the CLI cannot start, the desktop app opens a clearly marked offline preview with sample chats and a Retry action. The browser preview also uses sample data.
 
 TuxCodex uses the local Codex authentication and configuration. Sign in with the CLI before opening the desktop app. It does not collect or store an API key in its own settings.
@@ -70,6 +70,10 @@ codex app-server (installed Codex CLI)
 The Rust bridge initializes one app-server process, correlates requests with responses, forwards streamed events, and handles approval replies. The frontend reads thread history from Codex using `thread/read`; it does not maintain a separate SQLite cache. The user's Codex configuration controls authentication, sandboxing, and default approval policy. The UI does not silently approve commands or file changes.
 
 The app-server protocol changes with Codex versions. The [official App Server documentation](https://learn.chatgpt.com/docs/app-server) is the source for supported methods and event shapes. The model list is a picker catalog, not proof that a particular account can run every listed model.
+
+## Roadmap toward Codex desktop parity
+
+The most useful next additions are Git worktree creation and switching, a repository-level Git review panel, an integrated terminal, file and image attachments, and richer search across chat content. Later milestones can cover skills and plugins, scheduled tasks, and voice input. These are separate pieces of work; the current review panel shows diffs reported by the local app-server for a chat, not a complete Git working-tree review.
 
 If a turn fails with a model-not-supported message, update the Codex CLI and restart TuxCodex. An older CLI can return a stale default model even when authentication succeeds. You can also choose another listed model in Settings, but only a successful turn confirms access.
 

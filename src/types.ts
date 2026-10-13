@@ -14,6 +14,13 @@ export interface Model {
   displayName?: string;
   isDefault?: boolean;
   hidden?: boolean;
+  defaultReasoningEffort?: string;
+  supportedReasoningEfforts?: { reasoningEffort: string; description?: string }[];
+}
+
+export interface PlanStep {
+  step: string;
+  status: "pending" | "inProgress" | "completed";
 }
 
 export interface ChatItem {
@@ -22,6 +29,7 @@ export interface ChatItem {
   text: string;
   status?: string;
   kind?: string;
+  detail?: string;
 }
 
 export interface ServerMessage {
@@ -34,5 +42,6 @@ export interface Settings {
   codexPath: string;
   cwd: string;
   model: string;
+  effort: string;
   theme: "system" | "dark" | "light";
 }

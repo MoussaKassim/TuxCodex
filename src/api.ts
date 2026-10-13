@@ -1,5 +1,5 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import type { ServerMessage } from "./types";
+import type { ChatItem, ServerMessage } from "./types";
 
 export const inDesktop = isTauri();
 
@@ -21,7 +21,7 @@ export function errorText(error: unknown): string {
   return "An unexpected error occurred.";
 }
 
-export function threadItems(raw: unknown): { id: string; role: "user" | "assistant" | "activity"; text: string; status?: string; kind?: string }[] {
+export function threadItems(raw: unknown): ChatItem[] {
   const thread = (raw as { thread?: { turns?: unknown[] } })?.thread;
   const turns = Array.isArray(thread?.turns) ? thread.turns : [];
   const items: ReturnType<typeof threadItems> = [];
@@ -41,9 +41,10 @@ export function threadItems(raw: unknown): { id: string; role: "user" | "assista
       } else if (item.type === "agentMessage" && typeof item.text === "string") {
         items.push({ id, role: "assistant", text: item.text });
       } else if (item.type === "commandExecution") {
-        items.push({ id, role: "activity", kind: "Command", text: String(item.command || "Command"), status: String(item.status || "") });
+        items.push({ id, role: "activity", kind: "Command", text: String(item.command || "Command"), status: String(item.status || ""), detail: String(item.aggregatedOutput || "") });
       } else if (item.type === "fileChange") {
-        items.push({ id, role: "activity", kind: "Files", text: "File changes", status: String(item.status || "") });
+        const changes = Array.isArray(item.changes) ? item.changes as { path?: string; diff?: string }[] : [];
+        items.push({ id, role: "activity", kind: "Files", text: changes.length === 1 ? changes[0].path || "File changes" : `${changes.length} files changed`, status: String(item.status || ""), detail: changes.map((change) => change.diff || "").filter(Boolean).join("\n") });
       }
     }
   }

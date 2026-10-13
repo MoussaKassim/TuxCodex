@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { open } from "@tauri-apps/plugin-dialog";
 import {
   Archive,
   ArrowDown,
@@ -11,6 +12,7 @@ import {
   Code2,
   Command,
   FolderOpen,
+  FileDiff,
   Menu,
   MessageSquare,
   MoreHorizontal,
@@ -26,8 +28,11 @@ import {
 } from "lucide-react";
 import { connect, errorText, inDesktop, methodThreadId, respondApproval, rpc, threadItems } from "./api";
 import type { ChatItem, Model, ServerMessage, Settings, Thread } from "./types";
+import type { PlanStep } from "./types";
+import MarkdownMessage from "./MarkdownMessage";
+import ReviewPanel from "./ReviewPanel";
 
-const defaultSettings: Settings = { codexPath: "", cwd: "", model: "", theme: "system" };
+const defaultSettings: Settings = { codexPath: "", cwd: "", model: "", effort: "", theme: "system" };
 const demoThreads: Thread[] = [
   { id: "demo-1", name: "Welcome to TuxCodex", preview: "Explore the Linux desktop client", updatedAt: Date.now() / 1000 },
   { id: "demo-2", name: "A sample workspace", preview: "Ask Codex about your project", updatedAt: Date.now() / 1000 - 86400 },
@@ -85,6 +90,11 @@ export default function App() {
   const [approvalQueue, setApprovalQueue] = useState<ServerMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewTab, setReviewTab] = useState<"changes" | "plan">("changes");
+  const [diff, setDiff] = useState("");
+  const [plan, setPlan] = useState<PlanStep[]>([]);
+  const [expandedActivity, setExpandedActivity] = useState<string | null>(null);
   const selectedRef = useRef<string | null>(selectedId);
   const turnRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -118,6 +128,8 @@ export default function App() {
       turnRef.current = null;
       setSelectedId(null);
       setItems([]);
+      setDiff("");
+      setPlan([]);
       setBusy(false);
       setConnection("connected");
       setConnectionDetail("Connected to Codex app-server");
@@ -166,10 +178,20 @@ export default function App() {
               if (turn?.status === "failed") setError(turn.error?.message || "The Codex turn failed.");
             }
             void refreshThreads();
+            if (threadId) setApprovalQueue((previous) => previous.filter((request) => request.params.threadId !== threadId));
+            return;
+          }
+          if (message.method === "serverRequest/resolved") {
+            setApprovalQueue((previous) => previous.filter((request) => request.id !== message.params.requestId));
             return;
           }
           if (threadId && threadId !== selectedRef.current) return;
-          if (message.method === "item/agentMessage/delta") {
+          if (message.method === "turn/diff/updated" && typeof message.params.diff === "string") {
+            setDiff(message.params.diff);
+          } else if (message.method === "turn/plan/updated" && Array.isArray(message.params.plan)) {
+            if (!threadId && message.params.turnId !== turnRef.current) return;
+            setPlan(message.params.plan as PlanStep[]);
+          } else if (message.method === "item/agentMessage/delta") {
             const id = String(message.params.itemId || "streaming");
             const delta = String(message.params.delta || "");
             setItems((previous) => {
@@ -189,12 +211,14 @@ export default function App() {
                   : [...previous, next];
               });
             } else if (item.type === "commandExecution" || item.type === "fileChange") {
+              const changes = Array.isArray(item.changes) ? item.changes as { path?: string; diff?: string }[] : [];
               const next: ChatItem = {
                 id: item.id,
                 role: "activity",
                 kind: item.type === "commandExecution" ? "Command" : "Files",
-                text: item.type === "commandExecution" ? String(item.command || "Running command") : "File changes",
+                text: item.type === "commandExecution" ? String(item.command || "Running command") : changes.length === 1 ? changes[0].path || "File changes" : `${changes.length} files changed`,
                 status: String(item.status || "inProgress"),
+                detail: item.type === "commandExecution" ? String(item.aggregatedOutput || "") : changes.map((change) => change.diff || "").filter(Boolean).join("\n"),
               };
               setItems((previous) => previous.some((entry) => entry.id === next.id)
                 ? previous.map((entry) => entry.id === next.id ? next : entry)
@@ -229,6 +253,9 @@ export default function App() {
     setSidebarOpen(false);
     setMenuOpen(false);
     setError(null);
+    setDiff("");
+    setPlan([]);
+    setExpandedActivity(null);
     if (!inDesktop) {
       setItems(id === "demo-1" ? demoItems : [
         { id: "sample-u", role: "user", text: "Can you help me understand this project?" },
@@ -239,7 +266,11 @@ export default function App() {
     setItems([]);
     try {
       const result = await rpc("thread/read", { threadId: id, includeTurns: true });
-      if (selectedRef.current === id) setItems(threadItems(result));
+      if (selectedRef.current === id) {
+        const history = threadItems(result);
+        setItems(history);
+        setDiff(history.filter((item) => item.kind === "Files" && item.detail).map((item) => item.detail).join("\n"));
+      }
     } catch (failure) {
       setError(errorText(failure));
     }
@@ -255,6 +286,9 @@ export default function App() {
     setSidebarOpen(false);
     setMenuOpen(false);
     setError(null);
+    setDiff("");
+    setPlan([]);
+    setExpandedActivity(null);
     requestAnimationFrame(() => textareaRef.current?.focus());
   }
 
@@ -314,6 +348,7 @@ export default function App() {
         threadId: id,
         input: [{ type: "text", text }],
         ...(settings.model ? { model: settings.model } : {}),
+        ...(settings.effort && effortOptions.some((option) => option.reasoningEffort === settings.effort) ? { effort: settings.effort } : {}),
       });
       turnRef.current = result.turn.id;
       void refreshThreads();
@@ -361,6 +396,15 @@ export default function App() {
     setSettingsOpen(false);
   }
 
+  async function chooseWorkspace() {
+    try {
+      const path = await open({ directory: true, multiple: false, title: "Choose a Codex workspace" });
+      if (typeof path === "string") setDraftSettings((current) => ({ ...current, cwd: path }));
+    } catch (failure) {
+      setError(errorText(failure));
+    }
+  }
+
   async function openProject() {
     const url = "https://github.com/MoussaKassim/TuxCodex";
     if (!inDesktop) {
@@ -376,6 +420,13 @@ export default function App() {
 
   const activeThread = threads.find((thread) => thread.id === selectedId);
   const matchingThreads = threads.filter((thread) => `${displayName(thread)} ${thread.cwd || ""}`.toLowerCase().includes(search.toLowerCase()));
+  const projectGroups = Array.from(matchingThreads.reduce((groups, thread) => {
+    const key = thread.cwd || "Other chats";
+    groups.set(key, [...(groups.get(key) || []), thread]);
+    return groups;
+  }, new Map<string, Thread[]>()).entries());
+  const activeModel = models.find((model) => (model.model || model.id) === settings.model) || models.find((model) => model.isDefault);
+  const effortOptions = activeModel?.supportedReasoningEfforts || [];
   const approval = approvalQueue[0];
   const approvalParams = approval?.params || {};
   const approvalCommand = typeof approvalParams.command === "string" ? approvalParams.command : "";
@@ -393,15 +444,15 @@ export default function App() {
         </div>
         <button className="new-chat" onClick={newChat}><Plus size={18} /><span>New chat</span><span className="shortcut">Ctrl N</span></button>
         <div className="search-box"><Search size={17} /><input aria-label="Search chats" placeholder="Search chats" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
-        <div className="sidebar-section-title">CHATS <span>{matchingThreads.length}</span></div>
+        <div className="sidebar-section-title">PROJECTS <span>{projectGroups.length}</span></div>
         <div className="thread-list">
-          {matchingThreads.map((thread) => (
+          {projectGroups.map(([path, group]) => <div className="project-group" key={path}><button className="project-heading" title={path} onClick={() => { setSettings((current) => ({ ...current, cwd: path === "Other chats" ? "" : path })); newChat(); }}><FolderOpen size={15} /><span>{shortPath(path)}</span><small>{group.length}</small></button>{group.map((thread) => (
             <button key={thread.id} className={`thread-row ${selectedId === thread.id ? "active" : ""}`} onClick={() => void selectThread(thread.id)}>
               <MessageSquare size={16} />
-              <span className="thread-text"><strong>{displayName(thread)}</strong><small>{thread.preview || shortPath(thread.cwd || "")}</small></span>
+              <span className="thread-text"><strong>{displayName(thread)}</strong><small>{thread.preview || "Codex chat"}</small></span>
               <time>{formatDate(thread.updatedAt || thread.createdAt)}</time>
             </button>
-          ))}
+          ))}</div>)}
           {matchingThreads.length === 0 && <p className="empty-search">{search ? "No chats found" : "Your chats will appear here"}</p>}
         </div>
         <div className="sidebar-bottom">
@@ -420,11 +471,12 @@ export default function App() {
           <div className="topbar-left">
             <button className="icon-button mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Open sidebar"><Menu size={20} /></button>
             <div className="workspace-glyph"><Code2 size={18} /></div>
-            <div className="topbar-title"><strong>{activeThread ? displayName(activeThread) : "New chat"}</strong><small><FolderOpen size={13} /> {settings.cwd ? shortPath(settings.cwd) : "Choose a workspace in Settings"}</small></div>
-            <ChevronDown size={15} className="title-chevron" />
+            <div className="topbar-title"><strong>{activeThread ? displayName(activeThread) : "New chat"}</strong><small><FolderOpen size={13} /> {activeThread?.cwd ? shortPath(activeThread.cwd) : settings.cwd ? shortPath(settings.cwd) : "Choose a workspace in Settings"}</small></div>
+            <button className="icon-button workspace-menu" title="Choose workspace" onClick={() => { setDraftSettings(settings); setSettingsOpen(true); }}><ChevronDown size={15} /></button>
           </div>
           <div className="topbar-right">
             <span className={`top-status ${connection}`}><span className="status-dot" />{connection === "connected" ? "Connected" : connection === "demo" ? "Preview" : connection === "connecting" ? "Connecting" : "Offline"}</span>
+            <button className={`review-toggle ${reviewOpen ? "active" : ""}`} onClick={() => { setReviewTab("changes"); setReviewOpen(!reviewOpen); }} title="Review code changes"><FileDiff size={16} /><span>Review</span></button>
             <button className="icon-button top-settings" title="Settings" onClick={() => { setDraftSettings(settings); setSettingsOpen(true); }}><Settings2 size={19} /></button>
             {selectedId && inDesktop && <div className="menu-anchor"><button className="icon-button" title="Chat actions" onClick={() => setMenuOpen(!menuOpen)}><MoreHorizontal size={21} /></button>{menuOpen && <div className="dropdown-menu"><button onClick={() => void archiveThread()}><Archive size={16} /> Archive chat</button><button className="danger" onClick={() => void archiveThread(true)}><Trash2 size={16} /> Delete chat</button></div>}</div>}
           </div>
@@ -449,11 +501,11 @@ export default function App() {
           ) : (
             <div className="message-list">
               {items.map((item) => item.role === "activity" ? (
-                <div key={item.id} className="activity-item"><div className="activity-icon">{item.kind === "Command" ? <Command size={15} /> : <Code2 size={15} />}</div><div><strong>{item.kind}</strong><code>{item.text}</code></div><span className={`activity-status ${item.status}`}>{item.status === "inProgress" ? "Running" : item.status || "Done"}</span></div>
+                <div key={item.id} className="activity-wrap"><button className="activity-item" onClick={() => { if (item.kind === "Files") { setReviewTab("changes"); setReviewOpen(true); } else setExpandedActivity(expandedActivity === item.id ? null : item.id); }}><div className="activity-icon">{item.kind === "Command" ? <Command size={15} /> : <Code2 size={15} />}</div><div><strong>{item.kind}</strong><code>{item.text}</code></div><span className={`activity-status ${item.status}`}>{item.status === "inProgress" ? "Running" : item.status || "Done"}</span><ChevronDown size={14} /></button>{expandedActivity === item.id && item.kind === "Command" && <pre className="activity-output">{item.detail || "No command output available."}</pre>}</div>
               ) : (
                 <div key={item.id} className={`message-row ${item.role}`}>
                   <div className={`avatar ${item.role}`}>{item.role === "assistant" ? <Terminal size={16} /> : "Y"}</div>
-                  <div className="message-body"><div className="message-meta">{item.role === "assistant" ? "Codex" : "You"}</div><div className="message-text">{item.text || <span className="typing-indicator">Thinking…</span>}</div></div>
+                  <div className="message-body"><div className="message-meta">{item.role === "assistant" ? "Codex" : "You"}</div><div className="message-text">{item.role === "assistant" && item.text ? <MarkdownMessage text={item.text} /> : item.text || <span className="typing-indicator">Thinking…</span>}</div></div>
                 </div>
               ))}
               {busy && !items.some((item) => item.role === "assistant" && item.text === "") && <div className="working-row"><span className="working-pulse" /> Codex is working…</div>}
@@ -465,13 +517,14 @@ export default function App() {
         <div className="composer-zone">
           <div className="composer">
             <textarea ref={textareaRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} placeholder={connection === "disconnected" ? "Connect to Codex to start chatting…" : "Ask Codex anything…"} rows={2} disabled={connection === "connecting" || connection === "disconnected"} aria-label="Message to Codex" />
-            <div className="composer-footer"><div className="composer-context"><FolderOpen size={15} /><span>{settings.cwd ? shortPath(settings.cwd) : "Default workspace"}</span></div><div className="composer-actions">{busy ? <button className="send-button stop-button" onClick={() => void stopTurn()} title="Stop turn" disabled={!turnRef.current}><Square size={15} fill="currentColor" /></button> : <button className="send-button" onClick={() => void sendMessage()} disabled={!draft.trim() || connection === "connecting" || connection === "disconnected"} title="Send message"><ArrowUp size={19} /></button>}</div></div>
+            <div className="composer-footer"><div className="composer-controls"><div className="composer-context"><FolderOpen size={15} /><span>{activeThread?.cwd ? shortPath(activeThread.cwd) : settings.cwd ? shortPath(settings.cwd) : "Default workspace"}</span></div><select aria-label="Model" className="composer-select" value={settings.model} onChange={(event) => setSettings((current) => ({ ...current, model: event.target.value, effort: "" }))}><option value="">Default model</option>{models.map((model) => <option key={model.id} value={model.model || model.id}>{model.displayName || model.model || model.id}</option>)}</select>{effortOptions.length > 0 && <select aria-label="Reasoning effort" className="composer-select" value={settings.effort} onChange={(event) => setSettings((current) => ({ ...current, effort: event.target.value }))}><option value="">Default effort</option>{effortOptions.map((option) => <option key={option.reasoningEffort} value={option.reasoningEffort}>{option.reasoningEffort}</option>)}</select>}</div><div className="composer-actions">{busy ? <button className="send-button stop-button" onClick={() => void stopTurn()} title="Stop turn" disabled={!turnRef.current}><Square size={15} fill="currentColor" /></button> : <button className="send-button" onClick={() => void sendMessage()} disabled={!draft.trim() || connection === "connecting" || connection === "disconnected"} title="Send message"><ArrowUp size={19} /></button>}</div></div>
           </div>
           <div className="composer-hint"><span>Codex can make mistakes. Review changes before applying them.</span><span><kbd>Enter</kbd> send <b>·</b> <kbd>Shift Enter</kbd> new line</span></div>
         </div>
       </main>
+      {reviewOpen && <ReviewPanel diff={diff} plan={plan} tab={reviewTab} onTabChange={setReviewTab} onClose={() => setReviewOpen(false)} />}
 
-      {settingsOpen && <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="settings-modal" role="dialog" aria-modal="true" aria-label="Settings"><div className="modal-header"><div><span className="eyebrow">PREFERENCES</span><h2>Settings</h2></div><button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={20} /></button></div><div className="settings-content"><label><span>Workspace folder</span><small>Absolute path used for new Codex chats.</small><input value={draftSettings.cwd} onChange={(event) => setDraftSettings({ ...draftSettings, cwd: event.target.value })} placeholder="/home/you/projects/my-app" /></label><label><span>Codex CLI path</span><small>Leave empty to find <code>codex</code> automatically.</small><input value={draftSettings.codexPath} onChange={(event) => setDraftSettings({ ...draftSettings, codexPath: event.target.value })} placeholder="/home/you/.local/bin/codex" /></label><label><span>Model</span><small>Models come from your local Codex app-server.</small><select value={draftSettings.model} onChange={(event) => setDraftSettings({ ...draftSettings, model: event.target.value })}><option value="">Codex default</option>{models.map((model) => <option key={model.id} value={model.model || model.id}>{model.displayName || model.model || model.id}</option>)}</select></label><label><span>Appearance</span><select value={draftSettings.theme} onChange={(event) => setDraftSettings({ ...draftSettings, theme: event.target.value as Settings["theme"] })}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label><div className="server-info"><span className={`status-dot ${connection}`} /><div><strong>{connectionDetail}</strong><small>Authentication is managed by the Codex CLI. Run <code>codex login</code> in a terminal if needed.</small></div></div></div><div className="modal-footer"><button className="secondary-button" onClick={() => { saveSettings(); if (inDesktop) void loadServer(draftSettings.codexPath, true); }}><RotateCcw size={16} /> Save & restart server</button><button className="primary-button" onClick={saveSettings}>Save settings</button></div></section></div>}
+      {settingsOpen && <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="settings-modal" role="dialog" aria-modal="true" aria-label="Settings"><div className="modal-header"><div><span className="eyebrow">PREFERENCES</span><h2>Settings</h2></div><button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={20} /></button></div><div className="settings-content"><label><span>Workspace folder</span><small>Absolute path used for new Codex chats.</small><div className="path-picker"><input value={draftSettings.cwd} onChange={(event) => setDraftSettings({ ...draftSettings, cwd: event.target.value })} placeholder="/home/you/projects/my-app" />{inDesktop && <button type="button" className="secondary-button" onClick={() => void chooseWorkspace()}><FolderOpen size={15} /> Browse</button>}</div></label><label><span>Codex CLI path</span><small>Leave empty to find <code>codex</code> automatically.</small><input value={draftSettings.codexPath} onChange={(event) => setDraftSettings({ ...draftSettings, codexPath: event.target.value })} placeholder="/home/you/.local/bin/codex" /></label><label><span>Model</span><small>Models come from your local Codex app-server.</small><select value={draftSettings.model} onChange={(event) => setDraftSettings({ ...draftSettings, model: event.target.value, effort: "" })}><option value="">Codex default</option>{models.map((model) => <option key={model.id} value={model.model || model.id}>{model.displayName || model.model || model.id}</option>)}</select></label><label><span>Appearance</span><select value={draftSettings.theme} onChange={(event) => setDraftSettings({ ...draftSettings, theme: event.target.value as Settings["theme"] })}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label><div className="server-info"><span className={`status-dot ${connection}`} /><div><strong>{connectionDetail}</strong><small>Authentication is managed by the Codex CLI. Run <code>codex login</code> in a terminal if needed.</small></div></div></div><div className="modal-footer"><button className="secondary-button" onClick={() => { saveSettings(); if (inDesktop) void loadServer(draftSettings.codexPath, true); }}><RotateCcw size={16} /> Save & restart server</button><button className="primary-button" onClick={saveSettings}>Save settings</button></div></section></div>}
 
       {approval && <div className="modal-scrim"><section className="approval-modal" role="alertdialog" aria-modal="true" aria-label="Codex approval request"><div className="approval-icon"><ShieldAlert size={24} /></div><span className="eyebrow">ACTION NEEDS APPROVAL</span><h2>{networkContext ? "Allow network access?" : approval.method.includes("fileChange") ? "Allow file changes?" : "Allow this command?"}</h2><p>{approvalReason || "Codex needs permission to continue this task."}</p>{networkContext?.host && <pre>{networkContext.protocol || "Network"}://{networkContext.host}</pre>}{!networkContext && approvalCommand && <pre>{approvalCommand}</pre>}{typeof approvalParams.cwd === "string" && <div className="approval-path"><FolderOpen size={15} />{approvalParams.cwd}</div>}<div className="approval-actions"><button className="secondary-button" onClick={() => void handleApproval("decline")}>Decline</button><button className="primary-button" onClick={() => void handleApproval("accept")}>Allow once</button></div></section></div>}
       <button className="scroll-bottom" onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })} title="Scroll to latest"><ArrowDown size={17} /></button>
