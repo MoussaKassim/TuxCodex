@@ -16,6 +16,7 @@ mod git;
 #[derive(Default)]
 struct Backend {
     server: Mutex<Option<Arc<Server>>>,
+    connect_lock: Mutex<()>,
 }
 
 struct Server {
@@ -174,6 +175,18 @@ async fn read_server(app: AppHandle, server: Arc<Server>, stdout: tokio::process
             Ok(message) => message,
             Err(_) => continue,
         };
+        // A restarted server may still have buffered stdout. Never forward its
+        // events or approval requests to the new server's UI.
+        let is_current = app
+            .state::<Backend>()
+            .server
+            .lock()
+            .await
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, &server));
+        if !is_current || !server.connected.load(Ordering::SeqCst) {
+            break;
+        }
         let id = message.get("id").and_then(Value::as_u64);
         let method = message.get("method").and_then(Value::as_str);
         match (id, method) {
@@ -251,6 +264,7 @@ async fn connect(
     codex_path: Option<String>,
     restart: bool,
 ) -> Result<(), String> {
+    let _connect_guard = state.connect_lock.lock().await;
     let mut slot = state.server.lock().await;
     if let Some(existing) = slot.as_ref() {
         if existing.connected.load(Ordering::SeqCst) && !restart {
@@ -301,7 +315,10 @@ async fn connect(
         server.stop().await;
         return Err(error);
     }
-    server.notify("initialized", json!({})).await?;
+    if let Err(error) = server.notify("initialized", json!({})).await {
+        server.stop().await;
+        return Err(error);
+    }
     let _ = app.emit("codex-status", "Connected to Codex app-server.");
     Ok(())
 }

@@ -116,6 +116,8 @@ export default function App() {
   const [expandedActivity, setExpandedActivity] = useState<string | null>(null);
   const selectedRef = useRef<string | null>(selectedId);
   const turnRef = useRef<string | null>(null);
+  const activeTurnsRef = useRef(new Map<string, string | null>());
+  const selectionVersionRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -154,8 +156,12 @@ export default function App() {
   const loadServer = useCallback(async (path: string, restart = false) => {
     setConnection("connecting");
     setConnectionDetail("Starting Codex app-server…");
+    setApprovalQueue([]);
     try {
       await connect(path, restart);
+      setApprovalQueue([]);
+      selectionVersionRef.current += 1;
+      activeTurnsRef.current.clear();
       selectedRef.current = null;
       turnRef.current = null;
       setSelectedId(null);
@@ -184,13 +190,17 @@ export default function App() {
         if (result.status === "rejected") setError(errorText(result.reason));
       }
     } catch (failure) {
-      setConnection("demo");
+      setConnection("disconnected");
       setConnectionDetail(errorText(failure));
       setAuthMissing(false);
-      selectedRef.current = "demo-1";
-      setSelectedId("demo-1");
-      setThreads(demoThreads);
-      setItems(demoItems);
+      selectionVersionRef.current += 1;
+      activeTurnsRef.current.clear();
+      selectedRef.current = null;
+      turnRef.current = null;
+      setSelectedId(null);
+      setThreads([]);
+      setItems([]);
+      setBusy(false);
     }
   }, [refreshThreads]);
 
@@ -204,9 +214,11 @@ export default function App() {
           const message = event.payload;
           const threadId = methodThreadId(message);
           if (message.method === "turn/completed") {
+            if (threadId) activeTurnsRef.current.delete(threadId);
             if (!threadId || threadId === selectedRef.current) {
               setBusy(false);
               turnRef.current = null;
+              if (!threadId && selectedRef.current) activeTurnsRef.current.delete(selectedRef.current);
               const turn = message.params.turn as { status?: string; error?: { message?: string } } | undefined;
               if (turn?.status === "failed") setError(turn.error?.message || "The Codex turn failed.");
             }
@@ -263,7 +275,13 @@ export default function App() {
         listen<ServerMessage>("codex-request", (event) => setApprovalQueue((previous) => [...previous, event.payload])),
         listen<string>("codex-status", (event) => {
           setConnectionDetail(event.payload);
-          if (event.payload.toLowerCase().includes("disconnected")) setConnection("disconnected");
+          if (event.payload.toLowerCase().includes("disconnected")) {
+            setConnection("disconnected");
+            setApprovalQueue([]);
+            activeTurnsRef.current.clear();
+            turnRef.current = null;
+            setBusy(false);
+          }
         }),
       ]);
       if (disposed) subscriptions.forEach((unlisten) => unlisten());
@@ -282,8 +300,11 @@ export default function App() {
   }, []);
 
   async function selectThread(id: string) {
+    const selectionVersion = ++selectionVersionRef.current;
     selectedRef.current = id;
     setSelectedId(id);
+    turnRef.current = activeTurnsRef.current.get(id) || null;
+    setBusy(activeTurnsRef.current.has(id));
     setSidebarOpen(false);
     setMenuOpen(false);
     setError(null);
@@ -302,17 +323,22 @@ export default function App() {
     setItems([]);
     try {
       const result = await rpc("thread/read", { threadId: id, includeTurns: true });
-      if (selectedRef.current === id) {
+      if (selectionVersionRef.current === selectionVersion) {
         const history = threadItems(result);
-        setItems(history);
-        setDiff(history.filter((item) => item.kind === "Files" && item.detail).map((item) => item.detail).join("\n"));
+        setItems((current) => {
+          const live = new Map(current.map((item) => [item.id, item]));
+          const historicIds = new Set(history.map((item) => item.id));
+          return [...history.map((item) => live.get(item.id) || item), ...current.filter((item) => !historicIds.has(item.id))];
+        });
+        setDiff((current) => current || history.filter((item) => item.kind === "Files" && item.detail).map((item) => item.detail).join("\n"));
       }
     } catch (failure) {
-      setError(errorText(failure));
+      if (selectionVersionRef.current === selectionVersion) setError(errorText(failure));
     }
   }
 
   function newChat() {
+    selectionVersionRef.current += 1;
     selectedRef.current = null;
     setSelectedId(null);
     setItems([]);
@@ -373,37 +399,50 @@ export default function App() {
       }, 700);
       return;
     }
+    const selectionVersion = selectionVersionRef.current;
+    let id = selectedRef.current;
     let optimisticId: string | null = null;
     try {
-      let id = selectedRef.current;
       if (!id) {
         const params: Record<string, unknown> = {};
         if (settings.cwd.trim()) params.cwd = settings.cwd.trim();
         if (settings.model) params.model = settings.model;
         const result = await rpc<{ thread: Thread }>("thread/start", params);
         id = result.thread.id;
-        selectedRef.current = id;
-        setSelectedId(id);
-        setItems([]);
+        activeTurnsRef.current.set(id, null);
+        if (selectionVersionRef.current === selectionVersion) {
+          selectedRef.current = id;
+          setSelectedId(id);
+          setItems([]);
+        }
       } else {
+        activeTurnsRef.current.set(id, null);
         await rpc("thread/resume", { threadId: id });
       }
       const localId = `local-${Date.now()}`;
-      optimisticId = localId;
-      setItems((previous) => [...previous, { id: localId, role: "user", text: [text, ...images.map((path) => `[Image: ${shortPath(path)}]`)].filter(Boolean).join("\n") }]);
+      if (selectionVersionRef.current === selectionVersion) {
+        optimisticId = localId;
+        setItems((previous) => [...previous, { id: localId, role: "user", text: [text, ...images.map((path) => `[Image: ${shortPath(path)}]`)].filter(Boolean).join("\n") }]);
+      }
       const result = await rpc<{ turn: { id: string } }>("turn/start", {
         threadId: id,
         input: [...(text ? [{ type: "text", text }] : []), ...images.map((path) => ({ type: "localImage", path }))],
         ...(settings.model ? { model: settings.model } : {}),
         ...(settings.effort && effortOptions.some((option) => option.reasoningEffort === settings.effort) ? { effort: settings.effort } : {}),
       });
-      turnRef.current = result.turn.id;
+      if (activeTurnsRef.current.has(id)) {
+        activeTurnsRef.current.set(id, result.turn.id);
+        if (selectedRef.current === id) turnRef.current = result.turn.id;
+      }
       void refreshThreads();
     } catch (failure) {
-      setBusy(false);
-      if (optimisticId) setItems((previous) => previous.filter((item) => item.id !== optimisticId));
-      setDraft((current) => current || text);
-      setAttachments((current) => Array.from(new Set([...images, ...current])).slice(0, 5));
+      if (id) activeTurnsRef.current.delete(id);
+      if (selectionVersionRef.current === selectionVersion) {
+        setBusy(false);
+        if (optimisticId) setItems((previous) => previous.filter((item) => item.id !== optimisticId));
+        setDraft((current) => current || text);
+        setAttachments((current) => Array.from(new Set([...images, ...current])).slice(0, 5));
+      }
       setError(errorText(failure));
     }
   }
@@ -487,33 +526,46 @@ export default function App() {
     if (!inDesktop || connection !== "connected" || busy || !workspacePath) return;
     setBusy(true);
     setError(null);
+    const selectionVersion = selectionVersionRef.current;
+    let id = selectedRef.current;
     let optimisticId: string | null = null;
     try {
-      let id = selectedRef.current;
       if (!id) {
         const params: Record<string, unknown> = { cwd: workspacePath };
         if (settings.model) params.model = settings.model;
         const started = await rpc<{ thread: Thread }>("thread/start", params);
         id = started.thread.id;
-        selectedRef.current = id;
-        setSelectedId(id);
-        setItems([]);
+        activeTurnsRef.current.set(id, null);
+        if (selectionVersionRef.current === selectionVersion) {
+          selectedRef.current = id;
+          setSelectedId(id);
+          setItems([]);
+        }
       } else {
+        activeTurnsRef.current.set(id, null);
         await rpc("thread/resume", { threadId: id });
       }
       const localId = `review-${Date.now()}`;
-      optimisticId = localId;
-      setItems((previous) => [...previous, { id: localId, role: "user", text: "Review uncommitted changes" }]);
+      if (selectionVersionRef.current === selectionVersion) {
+        optimisticId = localId;
+        setItems((previous) => [...previous, { id: localId, role: "user", text: "Review uncommitted changes" }]);
+      }
       const result = await rpc<{ turn: { id: string } }>("review/start", {
         threadId: id,
         delivery: "inline",
         target: { type: "uncommittedChanges" },
       });
-      turnRef.current = result.turn.id;
+      if (activeTurnsRef.current.has(id)) {
+        activeTurnsRef.current.set(id, result.turn.id);
+        if (selectedRef.current === id) turnRef.current = result.turn.id;
+      }
       void refreshThreads();
     } catch (failure) {
-      setBusy(false);
-      if (optimisticId) setItems((previous) => previous.filter((item) => item.id !== optimisticId));
+      if (id) activeTurnsRef.current.delete(id);
+      if (selectionVersionRef.current === selectionVersion) {
+        setBusy(false);
+        if (optimisticId) setItems((previous) => previous.filter((item) => item.id !== optimisticId));
+      }
       setError(errorText(failure));
     }
   }

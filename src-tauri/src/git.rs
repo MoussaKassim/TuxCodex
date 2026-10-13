@@ -1,9 +1,10 @@
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::process::Output;
+use std::process::{Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
+use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
 
@@ -43,6 +44,52 @@ async fn git_output(cwd: &Path, args: &[&str]) -> Result<Output, String> {
         .await
         .map_err(|_| "Git took too long while reading this repository.".to_string())?
         .map_err(|error| format!("Could not run Git: {error}"))
+}
+
+async fn git_diff_bounded(
+    cwd: &Path,
+    args: &[&str],
+    extra_path: Option<&Path>,
+    max_bytes: usize,
+    allow_difference_exit: bool,
+) -> Result<(String, bool), String> {
+    let mut command = Command::new("git");
+    command.arg("-C").arg(cwd).args(args);
+    if let Some(path) = extra_path {
+        command.arg(path);
+    }
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|error| format!("Could not run Git: {error}"))?;
+    let stdout = child.stdout.take().ok_or("Git output was unavailable.")?;
+    let operation = async {
+        let mut bytes = Vec::new();
+        stdout
+            .take(max_bytes.saturating_add(1) as u64)
+            .read_to_end(&mut bytes)
+            .await
+            .map_err(|error| format!("Could not read Git diff: {error}"))?;
+        let truncated = bytes.len() > max_bytes;
+        if truncated {
+            let _ = child.kill().await;
+        }
+        let status = child
+            .wait()
+            .await
+            .map_err(|error| format!("Could not finish Git diff: {error}"))?;
+        let valid_exit = status.success() || (allow_difference_exit && status.code() == Some(1));
+        if !truncated && !valid_exit {
+            return Err("Git could not read the diff for this repository.".into());
+        }
+        bytes.truncate(max_bytes);
+        Ok((String::from_utf8_lossy(&bytes).into_owned(), truncated))
+    };
+    timeout(Duration::from_secs(30), operation)
+        .await
+        .map_err(|_| "Git took too long while reading this repository.".to_string())?
 }
 
 fn git_error(output: &Output) -> String {
@@ -154,18 +201,20 @@ async fn snapshot_for(cwd: &Path) -> Result<GitSnapshot, String> {
     } else {
         vec!["diff", "--no-ext-diff", "--no-color", "--cached", "--"]
     };
-    let tracked = git_output(&root, &diff_args).await?;
-    if !tracked.status.success() {
-        return Err(git_error(&tracked));
-    }
+    let (tracked, tracked_truncated) =
+        git_diff_bounded(&root, &diff_args, None, MAX_DIFF_BYTES, false).await?;
     let mut diff = String::new();
-    let mut truncated = append_diff(&mut diff, &String::from_utf8_lossy(&tracked.stdout));
+    let mut truncated = append_diff(&mut diff, &tracked) || tracked_truncated;
     if !has_head && !truncated {
-        let unstaged = git_output(&root, &["diff", "--no-ext-diff", "--no-color", "--"]).await?;
-        if !unstaged.status.success() {
-            return Err(git_error(&unstaged));
-        }
-        truncated = append_diff(&mut diff, &String::from_utf8_lossy(&unstaged.stdout));
+        let (unstaged, unstaged_truncated) = git_diff_bounded(
+            &root,
+            &["diff", "--no-ext-diff", "--no-color", "--"],
+            None,
+            MAX_DIFF_BYTES - diff.len(),
+            false,
+        )
+        .await?;
+        truncated = append_diff(&mut diff, &unstaged) || unstaged_truncated;
     }
     for file in files.iter().filter(|file| file.status == "??") {
         if truncated {
@@ -181,19 +230,22 @@ async fn snapshot_for(cwd: &Path) -> Result<GitSnapshot, String> {
         if metadata.len() == 0 {
             continue;
         }
-        let output = Command::new("git")
-            .arg("-C")
-            .arg(&root)
-            .args(["diff", "--no-index", "--no-ext-diff", "--no-color", "--"])
-            .arg("/dev/null")
-            .arg(&path)
-            .output()
-            .await
-            .map_err(|error| format!("Could not read untracked change: {error}"))?;
-        if output.status.code() != Some(1) && !output.status.success() {
-            return Err(git_error(&output));
-        }
-        truncated = append_diff(&mut diff, &String::from_utf8_lossy(&output.stdout));
+        let (change, change_truncated) = git_diff_bounded(
+            &root,
+            &[
+                "diff",
+                "--no-index",
+                "--no-ext-diff",
+                "--no-color",
+                "--",
+                "/dev/null",
+            ],
+            Some(&path),
+            MAX_DIFF_BYTES - diff.len(),
+            true,
+        )
+        .await?;
+        truncated = append_diff(&mut diff, &change) || change_truncated;
     }
     if truncated {
         diff.push_str("\n\n[Diff truncated at 1.5 MB. Open the repository for the full change.]\n");
@@ -325,6 +377,21 @@ mod tests {
         assert!(snapshot.diff.contains("+new file"));
         assert!(snapshot.diff.contains("+staged file"));
         assert!(!snapshot.is_worktree);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn snapshot_bounds_large_tracked_diffs() {
+        let root = fixture();
+        std::fs::write(
+            root.join("tracked.txt"),
+            "x".repeat(MAX_DIFF_BYTES + 100_000),
+        )
+        .unwrap();
+        let snapshot = snapshot_for(&root).await.unwrap();
+        assert!(snapshot.truncated);
+        assert!(snapshot.diff.len() < MAX_DIFF_BYTES + 200);
+        assert!(snapshot.diff.contains("[Diff truncated"));
         std::fs::remove_dir_all(root).unwrap();
     }
 
