@@ -2,9 +2,15 @@
 
 ![TuxCodex logo: a white TX monogram on deep blue](docs/images/tuxcodex-brand.png)
 
-**A desktop workspace for OpenAI Codex on Linux, Windows, and macOS.**
+**An optional, community-built desktop interface for the Codex CLI.**
 
-TuxCodex puts project switching, Codex chats, streamed work, approvals, code review, and file previews in one window. It connects to the Codex CLI installed on your computer and uses your existing Codex sign-in. Built with Tauri, React, and Rust, TuxCodex is an independent, unofficial project. The Ubuntu desktop experience has been tested; Windows and macOS installers remain previews.
+TuxCodex connects to the Codex CLI installed on your computer and presents its chats alongside project switching, Git review, and local file previews. It is an independent Tauri, React, and Rust project. Codex supplies the models, reasoning settings, tool execution, approvals, and AI responses; TuxCodex supplies this interface. The Ubuntu desktop experience has been tested; Windows and macOS installers remain previews.
+
+## Why use TuxCodex?
+
+OpenAI offers both the [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) and an [official Linux desktop app in preview](https://learn.chatgpt.com/docs/linux/linux-app). If either already fits your workflow, you do not need TuxCodex.
+
+TuxCodex is an option for people who prefer this open-source, community-maintained interface, want to modify its Tauri/Rust code, or want its particular project, Git review, and file-preview workflow. We also publish an Ubuntu 22.04 package. TuxCodex does not add a new model or claim feature parity with OpenAI's app.
 
 ![TuxCodex workspace showing the project sidebar, new chat, model picker, and worktree action](docs/images/tuxcodex-workspace.png)
 
@@ -37,6 +43,8 @@ TuxCodex uses your existing Codex sign-in and configuration. The CLI is a separa
 
 ## What you can do
 
+These are workflows available through this client. Model selection, attachments, and permission enforcement depend on the installed Codex CLI; they are not exclusive TuxCodex capabilities.
+
 - **Work across projects and chats:** choose a folder, create or resume chats, search titles and paths, and archive conversations.
 - **Follow Codex as it works:** see streamed replies, command output, file changes, and plan updates; interrupt a turn when needed.
 - **Review changes:** inspect Git changes in the review panel and ask Codex to review uncommitted work.
@@ -48,6 +56,10 @@ TuxCodex uses your existing Codex sign-in and configuration. The CLI is a separa
 
 Feature availability can depend on the installed Codex CLI, selected model, and operating system.
 Audio input requires a compatible Codex app-server: CLI 0.143.0 rejects `localAudio`, while 0.162.1 accepts the input shape. If the server rejects an audio turn, TuxCodex restores the draft and attachments. Actual audio processing still needs an authenticated desktop test.
+
+## Data and privacy
+
+TuxCodex does not run its own AI service or make model requests private. It starts the installed `codex app-server` locally and communicates with it over standard input/output. With a normal OpenAI Codex sign-in, Codex sends inference requests to OpenAI. TuxCodex uses the CLI's existing authentication and configuration. Avoid including credentials or other secrets in prompts or attachments. Standard and Full Access are Codex permission modes exposed through this interface; Full Access can allow commands and file changes without repeated prompts.
 
 ## Build from source
 
@@ -84,6 +96,8 @@ React + TypeScript interface
 
 TuxCodex starts `codex app-server` in the background and displays its responses and approval requests. Codex manages authentication and chat history. The [official App Server documentation](https://learn.chatgpt.com/docs/app-server) describes the protocol.
 App-server versions differ in how they spell permission values. TuxCodex retries with the older enum spelling only when the server rejects the newer one.
+
+Automated tests check TuxCodex's UI, Rust bridge, and packaged app workflows. They do not add testing abilities to Codex or replace tests for a user's own project.
 
 ## Development
 
