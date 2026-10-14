@@ -88,6 +88,10 @@ if [[ ${1:-} == --session ]]; then
     screenshot="${report%.json}-generated-preview.png"
     thumbnail=''
     for attempt in {1..30}; do
+      # WebKitGTK under Xvfb can defer compositing updates until the window
+      # receives input. Click the empty right edge before inspecting pixels.
+      xdotool mousemove --window "$window_id" "$((WIDTH - 25))" "$((HEIGHT / 2))" click 1
+      sleep .2
       scrot "$screenshot"
       thumbnail=$(python3 scripts/check-generated-preview.py thumbnail "$screenshot" || true)
       if [[ -n $thumbnail ]]; then break; fi

@@ -226,6 +226,14 @@ mod tests {
             .unwrap()
             .starts_with("data:image/png;base64,"));
 
+        std::fs::write(fixture.0.join("chart.svg"), r##"<svg xmlns="http://www.w3.org/2000/svg" width="160" height="100"><rect width="160" height="100" fill="#ff00ff"/></svg>"##).unwrap();
+        let svg = preview(fixture.0.to_str().unwrap(), "chart.svg").unwrap();
+        assert_eq!(svg.kind, "image");
+        assert!(svg
+            .data_url
+            .unwrap()
+            .starts_with("data:image/svg+xml;base64,"));
+
         std::fs::write(fixture.0.join("index.html"), "<h1>Report</h1>").unwrap();
         let html = preview(fixture.0.to_str().unwrap(), "index.html").unwrap();
         assert_eq!(html.kind, "html");
