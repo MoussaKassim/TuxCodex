@@ -368,6 +368,7 @@ button:disabled { cursor: not-allowed; }
 .file-link.inline-code { padding: 2px 4px; background: var(--surface-2); border-radius: 4px; font-family: "IBM Plex Mono", monospace; font-size: .9em; }
 .inline-image { display: block; max-width: min(100%, 540px); padding: 5px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; text-align: left; }
 .inline-image img { display: block; max-width: 100%; max-height: 300px; border-radius: 5px; object-fit: contain; }
+.inline-image img, .generated-image img { pointer-events: none; }
 .inline-image span { display: block; padding: 6px 3px 1px; font-size: 10px; }
 .activity-file-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 5px 0 0 38px; }
 .activity-file-open { padding: 4px 8px; color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 5px; font-size: 10px; }
