@@ -108,7 +108,9 @@ if [[ ${1:-} == --session ]]; then
       exit 1
     fi
     read -r image_x image_y thumbnail_pixels <<<"$thumbnail"
-    xdotool mousemove "$image_x" "$image_y" click 1
+    echo "Clicking generated thumbnail at screen ${image_x},${image_y}; window origin ${X},${Y}."
+    xdotool mousemove --window "$window_id" "$((image_x - X))" "$((image_y - Y))" click 1
+    xdotool getmouselocation --shell
     viewer_pixels=''
     for attempt in {1..15}; do
       xdotool mousemove --window "$window_id" "$((WIDTH - 25))" "$((HEIGHT / 2))" click 1
