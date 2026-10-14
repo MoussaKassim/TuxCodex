@@ -113,10 +113,6 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 GitHub Actions runs frontend and Rust tests, checks the app-server protocol against an older and a current CLI, uploads JUnit reports and Ubuntu coverage, and builds installers for Ubuntu 22.04, Ubuntu 24.04, Fedora, Windows, and macOS. Each Linux job checks that the packaged app opens a visible window under Xvfb, reports startup time and launcher memory, selects a model and reasoning effort, sends a Standard-permission chat, declines a command approval request, confirms Full Access, and sends a second turn through the real composer and Rust bridge. A separate packaged-window run has the mock app-server create an SVG in a temporary workspace and checks that it appears inline and opens in the built-in viewer. Version tags publish installers only after the required jobs pass. Interactive testing on each platform is still valuable. Contributions and bug reports are welcome through [Issues](https://github.com/MoussaKassim/TuxCodex/issues).
 
-## Authors
-
-TuxCodex is developed by **Moussa Kassim Mohame** and **Stefano Cacciatore**. The [Git history](https://github.com/MoussaKassim/TuxCodex/commits/main/) records contributions to the project.
-
 TuxCodex is an unofficial client and is not affiliated with OpenAI.
 
 ## License

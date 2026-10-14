@@ -1,6 +1,6 @@
 # Codex Desktop Linux (Unofficial) — original README in English
 
-This is an English translation of the README that accompanied Moussa's Python/GTK 3 prototype in `codex-desktop-linux.tar`. It is kept for historical reference. Its release links, build instructions, model examples, and verification claims describe that prototype, not the active Tauri app. See the [current README](../README.md) for TuxCodex instructions.
+This is an English translation of the README that accompanied the earlier Python/GTK 3 prototype in `codex-desktop-linux.tar`. It is kept for historical reference. Its release links, build instructions, model examples, and verification claims describe that prototype, not the active Tauri app. See the [current README](../README.md) for TuxCodex instructions.
 
 The prototype is a native Linux desktop application, optimized for Ubuntu 24.04 LTS and compatible distributions, that provides a graphical interface to Codex through the official `Codex app-server` protocol (JSON-RPC 2.0).
 
