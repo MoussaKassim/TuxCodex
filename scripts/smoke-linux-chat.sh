@@ -111,6 +111,7 @@ if [[ ${1:-} == --session ]]; then
     xdotool mousemove "$image_x" "$image_y" click 1
     viewer_pixels=''
     for attempt in {1..15}; do
+      xdotool mousemove --window "$window_id" "$((WIDTH - 25))" "$((HEIGHT / 2))" click 1
       sleep .5
       scrot "$screenshot"
       viewer_pixels=$(python3 scripts/check-generated-preview.py viewer "$screenshot" || true)
